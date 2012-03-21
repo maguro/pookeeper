@@ -1,0 +1,9 @@
+# intellij project files
+*.ipr
+*.iml
+*.iws
+.idea
+# all target dirs
+target/
+output/
+.DS_Store
