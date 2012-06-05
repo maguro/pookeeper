@@ -20,8 +20,30 @@ import time
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
-from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed
+from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL
 from toolazydogs.zookeeper.zookeeper import _collect_hosts
+
+
+def test_CREATE_CODES():
+    assert isinstance(CREATE_CODES[0], Persistent)
+    assert CREATE_CODES[0].flags == 0
+    assert CREATE_CODES[0].ephemeral == False
+    assert CREATE_CODES[0].sequential == False
+
+    assert isinstance(CREATE_CODES[1], Ephemeral)
+    assert CREATE_CODES[1].flags == 1
+    assert CREATE_CODES[1].ephemeral == True
+    assert CREATE_CODES[1].sequential == False
+
+    assert isinstance(CREATE_CODES[2], PersistentSequential)
+    assert CREATE_CODES[2].flags == 2
+    assert CREATE_CODES[2].ephemeral == False
+    assert CREATE_CODES[2].sequential == True
+
+    assert isinstance(CREATE_CODES[3], EphemeralSequential)
+    assert CREATE_CODES[3].flags == 3
+    assert CREATE_CODES[3].ephemeral == True
+    assert CREATE_CODES[3].sequential == True
 
 
 def test_EXCEPTIONS():
@@ -73,7 +95,7 @@ class Mine(Watcher):
 
 @attr('server')
 def test_zookeeper():
-    z = zookeeper.allocate('acabrera-001:12913,acabrera-002:12913,acabrera-003:12913/search', session_timeout=1.0)
+    z = zookeeper.allocate('localhost/uscp-search', session_timeout=1.0)
     z.watchers.add(Mine())
 
     z.get_children('/')
@@ -85,10 +107,16 @@ def test_zookeeper():
 
     z.close()
 
-    z = zookeeper.allocate('acabrera-001:12913,acabrera-002:12913,acabrera-003:12913/search')
+    z = zookeeper.allocate('localhost/uscp-search')
 
     z.get_children('/')
     z.get_children('/')
+
+    stat = z.exists('/acabrera')
+    if stat: z.delete('/acabrera', stat.version)
+    z.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+    stat = z.exists('/acabrera')
+    if stat: z.delete('/acabrera', stat.version)
 
     z.close()
 

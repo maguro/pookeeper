@@ -21,13 +21,18 @@ import socket
 import struct
 import threading
 
-from toolazydogs.zookeeper import EXCEPTIONS, SystemZookeeperError, RuntimeInconsistency, DataInconsistency
+from toolazydogs.zookeeper import EXCEPTIONS, Persistent, NoNode
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
 from toolazydogs.zookeeper.packets.proto.CloseResponse import CloseResponse
 from toolazydogs.zookeeper.packets.proto.ConnectResponse import ConnectResponse
 from toolazydogs.zookeeper.packets.proto.ConnectRequest import ConnectRequest
+from toolazydogs.zookeeper.packets.proto.CreateRequest import CreateRequest
+from toolazydogs.zookeeper.packets.proto.CreateResponse import CreateResponse
+from toolazydogs.zookeeper.packets.proto.DeleteRequest import DeleteRequest
+from toolazydogs.zookeeper.packets.proto.ExistsRequest import ExistsRequest
+from toolazydogs.zookeeper.packets.proto.ExistsResponse import ExistsResponse
 from toolazydogs.zookeeper.packets.proto.GetChildrenRequest import GetChildrenRequest
 from toolazydogs.zookeeper.packets.proto.GetChildrenResponse import GetChildrenResponse
 from toolazydogs.zookeeper.packets.proto.PingRequest import PingRequest
@@ -155,7 +160,8 @@ class Client(object):
                                     callback_exception = None
                                     if header.err:
                                         callback_exception = EXCEPTIONS[header.err]()
-                                    else:
+                                        LOGGER.debug('Received error %r', callback_exception)
+                                    elif response:
                                         response.deserialize(buffer, 'response')
                                         LOGGER.debug('Received response: %r', response)
 
@@ -243,6 +249,33 @@ class Client(object):
         if call_exception:
             raise call_exception
 
+    def create(self, path, acls, code, data=None):
+        if not acls:
+            raise ValueError('ACLs cannot be None or empty')
+        if not code:
+            raise ValueError('Creation code cannot be None')
+        request = CreateRequest(path, data, acls, code.flags)
+        response = CreateResponse(None)
+
+        self._call(request, response)
+
+        return response.path
+
+    def delete(self, path, version):
+        request = DeleteRequest(path, version)
+
+        self._call(request, None)
+
+    def exists(self, path, watch=False):
+        request = ExistsRequest(path, watch)
+        response = ExistsResponse(None)
+
+        try:
+            self._call(request, response)
+            return response.stat if response.stat.czxid != -1 else None
+        except NoNode:
+            return None
+
     def get_children(self, path, watch=False):
         request = GetChildrenRequest(path, watch)
         response = GetChildrenResponse(None)
@@ -252,18 +285,17 @@ class Client(object):
         return response.children
 
     def _call(self, request, response):
-        call_exception = None
+        call_exception = [None]
         event = threading.Event()
 
         def callback(exception):
-            global call_exception
-            call_exception = exception
+            call_exception[0] = exception
             event.set()
 
         self._queue.put((request, response, callback))
         event.wait()
-        if call_exception:
-            raise call_exception
+        if call_exception[0]:
+            raise call_exception[0]
 
 
 def _invoke(socket, request, response=None, xid=None):
@@ -358,7 +390,7 @@ def _collect_hosts(hosts):
         else:
             host = host_port
             port = 2181
-        result.append((host, port))
+        result.append((host.strip(), port))
 
     return (result, chroot)
 

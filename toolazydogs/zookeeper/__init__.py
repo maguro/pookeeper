@@ -18,6 +18,8 @@ from Queue import Queue, Empty
 from collections import defaultdict
 
 from time import time as _time
+from toolazydogs.zookeeper.packets.data.ACL import ACL
+from toolazydogs.zookeeper.packets.data.Id import Id
 
 
 class PeekableQueue(Queue):
@@ -73,7 +75,82 @@ def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, 
     handle = Client(hosts, session_id, session_passwd, session_timeout, auth_data, read_only)
     return handle
 
+
+def _invalid_create_flag(): raise RuntimeError('Invalid create code')
+
+CREATE_CODES = {}
+
+class CreateCode(object):
+    pass
+
+
+def _create_code(flags, ephemeral, sequential):
+    def decorator(klass):
+        def attributes(self, name):
+            if name == 'ephemeral': return ephemeral
+            if name == 'sequential': return sequential
+            if name == 'flags': return flags
+            raise AttributeError('Attribute %s not found' % name)
+
+        klass.__getattr__ = attributes
+        CREATE_CODES[flags] = klass()
+        return klass
+
+    return decorator
+
+
+@_create_code(0, False, False)
+class Persistent(CreateCode):
+    """
+    The znode will not be automatically deleted upon client's disconnect.
+    """
+    pass
+
+
+@_create_code(1, True, False)
+class Ephemeral(CreateCode):
+    """
+    The znode will be deleted upon the client's disconnect.
+    """
+    pass
+
+
+@_create_code(2, False, True)
+class PersistentSequential(CreateCode):
+    """
+    The znode will not be automatically deleted upon client's disconnect,
+    and its name will be appended with a monotonically increasing number.
+    """
+    pass
+
+
+@_create_code(3, True, True)
+class EphemeralSequential(CreateCode):
+    """
+    The znode will be deleted upon the client's disconnect, and its name
+    will be appended with a monotonically increasing number.
+
+    """
+    pass
+
+
+class Perms(object):
+    READ = 1
+    WRITE = 2
+    CREATE = 4
+    DELETE = 8
+    ADMIN = 16
+    ALL = 31
+
+ANYONE_ID_UNSAFE = Id('world', 'anyone')
+AUTH_IDS = Id('world', 'anyone')
+
+OPEN_ACL_UNSAFE = [ACL(Perms.ALL, ANYONE_ID_UNSAFE)]
+CREATOR_ALL_ACL = [ACL(Perms.ALL, AUTH_IDS)]
+READ_ACL_UNSAFE = [ACL(Perms.READ, ANYONE_ID_UNSAFE)]
+
 def _invalid_error_code(): raise RuntimeError('Invalid error code')
+
 EXCEPTIONS = defaultdict(_invalid_error_code)
 
 def _zookeeper_exception(code):
@@ -165,35 +242,42 @@ class BadVersion(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(BadVersion, self).__init__(*args, **kwargs)
 
+
 @_zookeeper_exception(-108)
 class NoChildrenForEphemerals(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(NoChildrenForEphemerals, self).__init__(*args, **kwargs)
+
 
 @_zookeeper_exception(-110)
 class NodeExists(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(NodeExists, self).__init__(*args, **kwargs)
 
+
 @_zookeeper_exception(-111)
 class NotEmpty(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(NotEmpty, self).__init__(*args, **kwargs)
+
 
 @_zookeeper_exception(-112)
 class SessionExpired(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(SessionExpired, self).__init__(*args, **kwargs)
 
+
 @_zookeeper_exception(-113)
 class InvalidCallback(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(InvalidCallback, self).__init__(*args, **kwargs)
 
+
 @_zookeeper_exception(-114)
 class InvalidACL(ZookeeperError):
     def __init__(self, *args, **kwargs):
         super(InvalidACL, self).__init__(*args, **kwargs)
+
 
 @_zookeeper_exception(-115)
 class AuthFailed(ZookeeperError):

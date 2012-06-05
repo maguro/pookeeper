@@ -58,7 +58,7 @@ class OutputArchive(object):
 
     def write_buffer(self, buf, tag):
         if not buf:
-            self.buffer.append(-1)
+            self.buffer.extend(struct.pack('!i', -1))
         else:
             self.buffer.extend(struct.pack('!i', len(buf)))
             self.buffer.extend(buf)

@@ -19,6 +19,7 @@
 
 class DeleteRequest:
     def __init__(self, path, version):
+        self.type = 2
         self.path = path
         self.version = version
 

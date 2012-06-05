@@ -19,6 +19,7 @@
 
 class CreateRequest:
     def __init__(self, path, data, acl, flags):
+        self.type = 1
         self.path = path
         self.data = data
         self.acl = acl

@@ -19,6 +19,7 @@
 
 class ExistsRequest:
     def __init__(self, path, watch):
+        self.type = 3
         self.path = path
         self.watch = watch
 
