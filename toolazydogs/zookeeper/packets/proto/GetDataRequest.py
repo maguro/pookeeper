@@ -19,6 +19,7 @@
 
 class GetDataRequest:
     def __init__(self, path, watch):
+        self.type = 4
         self.path = path
         self.watch = watch
 

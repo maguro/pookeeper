@@ -19,6 +19,7 @@
 
 class SetDataRequest:
     def __init__(self, path, data, version):
+        self.type = 5
         self.path = path
         self.data = data
         self.version = version

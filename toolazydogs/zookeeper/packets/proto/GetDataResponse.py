@@ -16,6 +16,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from toolazydogs.zookeeper.packets.data.Stat import Stat
+
 
 class GetDataResponse:
     def __init__(self, data, stat):
@@ -31,7 +33,8 @@ class GetDataResponse:
     def deserialize(self, input_archive, tag):
         input_archive.start_record(tag)
         self.data = input_archive.read_buffer('data')
-        self.stat = input_archive.read_record('stat')
+        self.stat = Stat(None, None, None, None, None, None, None, None, None, None, None)
+        input_archive.read_record(self.stat, 'stat')
         input_archive.end_record(tag)
 
     def __repr__(self):

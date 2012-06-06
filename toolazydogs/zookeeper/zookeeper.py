@@ -21,7 +21,7 @@ import socket
 import struct
 import threading
 
-from toolazydogs.zookeeper import EXCEPTIONS, Persistent, NoNode
+from toolazydogs.zookeeper import EXCEPTIONS, NoNode
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
@@ -35,8 +35,12 @@ from toolazydogs.zookeeper.packets.proto.ExistsRequest import ExistsRequest
 from toolazydogs.zookeeper.packets.proto.ExistsResponse import ExistsResponse
 from toolazydogs.zookeeper.packets.proto.GetChildrenRequest import GetChildrenRequest
 from toolazydogs.zookeeper.packets.proto.GetChildrenResponse import GetChildrenResponse
+from toolazydogs.zookeeper.packets.proto.GetDataRequest import GetDataRequest
+from toolazydogs.zookeeper.packets.proto.GetDataResponse import GetDataResponse
 from toolazydogs.zookeeper.packets.proto.PingRequest import PingRequest
 from toolazydogs.zookeeper.packets.proto.ReplyHeader import ReplyHeader
+from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
+from toolazydogs.zookeeper.packets.proto.SetDataResponse import SetDataResponse
 from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
@@ -275,6 +279,22 @@ class Client(object):
             return response.stat if response.stat.czxid != -1 else None
         except NoNode:
             return None
+
+    def get_data(self, path, watch=False):
+        request = GetDataRequest(path, watch)
+        response = GetDataResponse(None, None)
+
+        self._call(request, response)
+
+        return response.data, response.stat
+
+    def set_data(self, path, data, version):
+        request = SetDataRequest(path, data, version)
+        response = SetDataResponse(None)
+
+        self._call(request, response)
+
+        return response.stat
 
     def get_children(self, path, watch=False):
         request = GetChildrenRequest(path, watch)

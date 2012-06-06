@@ -116,6 +116,8 @@ def test_zookeeper():
     if stat: z.delete('/acabrera', stat.version)
     z.create('/acabrera', CREATOR_ALL_ACL, Persistent())
     stat = z.exists('/acabrera')
+    stat = z.set_data('/acabrera', bytearray([0] * 16), stat.version)
+    data, stat = z.get_data('/acabrera')
     if stat: z.delete('/acabrera', stat.version)
 
     z.close()
