@@ -19,6 +19,7 @@
 
 class GetACLRequest:
     def __init__(self, path):
+        self.type = 6
         self.path = path
 
     def serialize(self, output_archive, tag):

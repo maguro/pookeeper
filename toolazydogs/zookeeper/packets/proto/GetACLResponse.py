@@ -16,6 +16,9 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from toolazydogs.zookeeper.packets.data.ACL import ACL
+from toolazydogs.zookeeper.packets.data.Stat import Stat
+
 
 class GetACLResponse:
     def __init__(self, acl, stat):
@@ -38,12 +41,14 @@ class GetACLResponse:
         if len1 != None:
             self.acl = []
             for vidx1 in range(len1):
-                e1 =  input_archive.read_record('e1')
+                e1 = ACL(None, None)
+                input_archive.read_record(e1, 'e1')
                 self.acl.append(e1)
         else:
             self.acl = None
         input_archive.end_vector('acl')
-        self.stat = input_archive.read_record('stat')
+        self.stat = Stat(None, None, None, None, None, None, None, None, None, None, None)
+        input_archive.read_record(self.stat, 'stat')
         input_archive.end_record(tag)
 
     def __repr__(self):

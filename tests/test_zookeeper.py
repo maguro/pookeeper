@@ -20,7 +20,7 @@ import time
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
-from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL
+from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
 from toolazydogs.zookeeper.zookeeper import _collect_hosts
 
 
@@ -118,6 +118,8 @@ def test_zookeeper():
     stat = z.exists('/acabrera')
     stat = z.set_data('/acabrera', bytearray([0] * 16), stat.version)
     data, stat = z.get_data('/acabrera')
+    z.set_acls('/acabrera', CREATOR_ALL_ACL + READ_ACL_UNSAFE, stat.aversion)
+    acl = z.get_acls('/acabrera')
     if stat: z.delete('/acabrera', stat.version)
 
     z.close()

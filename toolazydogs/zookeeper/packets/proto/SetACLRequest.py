@@ -16,9 +16,12 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from toolazydogs.zookeeper.packets.data.ACL import ACL
+
 
 class SetACLRequest:
     def __init__(self, path, acl, version):
+        self.type = 7
         self.path = path
         self.acl = acl
         self.version = version
@@ -41,7 +44,8 @@ class SetACLRequest:
         if len1 != None:
             self.acl = []
             for vidx1 in range(len1):
-                e1 =  input_archive.read_record('e1')
+                e1 = ACL(None, None)
+                input_archive.read_record(e1, 'e1')
                 self.acl.append(e1)
         else:
             self.acl = None

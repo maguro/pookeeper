@@ -33,12 +33,16 @@ from toolazydogs.zookeeper.packets.proto.CreateResponse import CreateResponse
 from toolazydogs.zookeeper.packets.proto.DeleteRequest import DeleteRequest
 from toolazydogs.zookeeper.packets.proto.ExistsRequest import ExistsRequest
 from toolazydogs.zookeeper.packets.proto.ExistsResponse import ExistsResponse
+from toolazydogs.zookeeper.packets.proto.GetACLRequest import GetACLRequest
+from toolazydogs.zookeeper.packets.proto.GetACLResponse import GetACLResponse
 from toolazydogs.zookeeper.packets.proto.GetChildrenRequest import GetChildrenRequest
 from toolazydogs.zookeeper.packets.proto.GetChildrenResponse import GetChildrenResponse
 from toolazydogs.zookeeper.packets.proto.GetDataRequest import GetDataRequest
 from toolazydogs.zookeeper.packets.proto.GetDataResponse import GetDataResponse
 from toolazydogs.zookeeper.packets.proto.PingRequest import PingRequest
 from toolazydogs.zookeeper.packets.proto.ReplyHeader import ReplyHeader
+from toolazydogs.zookeeper.packets.proto.SetACLRequest import SetACLRequest
+from toolazydogs.zookeeper.packets.proto.SetACLResponse import SetACLResponse
 from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
 from toolazydogs.zookeeper.packets.proto.SetDataResponse import SetDataResponse
 from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
@@ -295,6 +299,23 @@ class Client(object):
         self._call(request, response)
 
         return response.stat
+
+    def get_acls(self, path):
+        request = GetACLRequest(path)
+        response = GetACLResponse(None, None)
+
+        self._call(request, response)
+
+        return response.acl, response.stat
+
+    def set_acls(self, path, acls, version):
+        request = SetACLRequest(path, acls, version)
+        response = SetACLResponse(None)
+
+        self._call(request, response)
+
+        return response.stat
+
 
     def get_children(self, path, watch=False):
         request = GetChildrenRequest(path, watch)

@@ -16,6 +16,8 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from toolazydogs.zookeeper.packets.data.Id import Id
+
 
 class ACL:
     def __init__(self, perms, id):
@@ -31,7 +33,8 @@ class ACL:
     def deserialize(self, input_archive, tag):
         input_archive.start_record(tag)
         self.perms = input_archive.read_int('perms')
-        self.id = input_archive.read_record('id')
+        self.id = Id(None, None)
+        input_archive.read_record(self.id, 'id')
         input_archive.end_record(tag)
 
     def __repr__(self):
