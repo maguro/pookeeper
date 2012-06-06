@@ -120,6 +120,7 @@ def test_zookeeper():
     data, stat = z.get_data('/acabrera')
     z.set_acls('/acabrera', CREATOR_ALL_ACL + READ_ACL_UNSAFE, stat.aversion)
     acl = z.get_acls('/acabrera')
+    z.sync('/acabrera')
     if stat: z.delete('/acabrera', stat.version)
 
     z.close()

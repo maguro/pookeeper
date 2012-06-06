@@ -19,6 +19,7 @@
 
 class SyncRequest:
     def __init__(self, path):
+        self.type = 9
         self.path = path
 
     def serialize(self, output_archive, tag):

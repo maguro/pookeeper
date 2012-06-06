@@ -45,6 +45,8 @@ from toolazydogs.zookeeper.packets.proto.SetACLRequest import SetACLRequest
 from toolazydogs.zookeeper.packets.proto.SetACLResponse import SetACLResponse
 from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
 from toolazydogs.zookeeper.packets.proto.SetDataResponse import SetDataResponse
+from toolazydogs.zookeeper.packets.proto.SyncRequest import SyncRequest
+from toolazydogs.zookeeper.packets.proto.SyncResponse import SyncResponse
 from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
@@ -316,6 +318,11 @@ class Client(object):
 
         return response.stat
 
+    def sync(self, path):
+        request = SyncRequest(path)
+        response = SyncResponse(None)
+
+        self._call(request, response)
 
     def get_children(self, path, watch=False):
         request = GetChildrenRequest(path, watch)
