@@ -35,6 +35,8 @@ from toolazydogs.zookeeper.packets.proto.ExistsRequest import ExistsRequest
 from toolazydogs.zookeeper.packets.proto.ExistsResponse import ExistsResponse
 from toolazydogs.zookeeper.packets.proto.GetACLRequest import GetACLRequest
 from toolazydogs.zookeeper.packets.proto.GetACLResponse import GetACLResponse
+from toolazydogs.zookeeper.packets.proto.GetChildren2Request import GetChildren2Request
+from toolazydogs.zookeeper.packets.proto.GetChildren2Response import GetChildren2Response
 from toolazydogs.zookeeper.packets.proto.GetChildrenRequest import GetChildrenRequest
 from toolazydogs.zookeeper.packets.proto.GetChildrenResponse import GetChildrenResponse
 from toolazydogs.zookeeper.packets.proto.GetDataRequest import GetDataRequest
@@ -325,12 +327,12 @@ class Client(object):
         self._call(request, response)
 
     def get_children(self, path, watch=False):
-        request = GetChildrenRequest(path, watch)
-        response = GetChildrenResponse(None)
+        request = GetChildren2Request(path, watch)
+        response = GetChildren2Response(None, None)
 
         self._call(request, response)
 
-        return response.children
+        return response.children, response.stat
 
     def _call(self, request, response):
         call_exception = [None]

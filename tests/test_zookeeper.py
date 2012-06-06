@@ -102,15 +102,16 @@ def test_zookeeper():
 
     time.sleep(10)
 
-    for child in z.get_children('/'):
+    children, stat = z.get_children('/')
+    for child in children:
         print child
 
     z.close()
 
     z = zookeeper.allocate('localhost/uscp-search')
 
-    z.get_children('/')
-    z.get_children('/')
+    children, stat = z.get_children('/')
+    children, stat = z.get_children('/')
 
     stat = z.exists('/acabrera')
     if stat: z.delete('/acabrera', stat.version)
