@@ -81,10 +81,11 @@ def _invalid_create_flag(): raise RuntimeError('Invalid create code')
 CREATE_CODES = {}
 
 class CreateCode(object):
-    pass
+    def __repr__(self):
+        return '%s()' % self.__class__.__name__
 
 
-def _create_code(flags, ephemeral, sequential):
+def _create_code(name, flags, ephemeral, sequential):
     def decorator(klass):
         def attributes(self, name):
             if name == 'ephemeral': return ephemeral
@@ -93,13 +94,19 @@ def _create_code(flags, ephemeral, sequential):
             raise AttributeError('Attribute %s not found' % name)
 
         klass.__getattr__ = attributes
+
+        def string(self):
+            return name
+
+        klass.__str__ = string
+
         CREATE_CODES[flags] = klass()
         return klass
 
     return decorator
 
 
-@_create_code(0, False, False)
+@_create_code('PERSISTENT', 0, False, False)
 class Persistent(CreateCode):
     """
     The znode will not be automatically deleted upon client's disconnect.
@@ -107,7 +114,7 @@ class Persistent(CreateCode):
     pass
 
 
-@_create_code(1, True, False)
+@_create_code('EPHEMERAL', 1, True, False)
 class Ephemeral(CreateCode):
     """
     The znode will be deleted upon the client's disconnect.
@@ -115,7 +122,7 @@ class Ephemeral(CreateCode):
     pass
 
 
-@_create_code(2, False, True)
+@_create_code('PERSISTENT_SEQUENTIAL', 2, False, True)
 class PersistentSequential(CreateCode):
     """
     The znode will not be automatically deleted upon client's disconnect,
@@ -124,7 +131,7 @@ class PersistentSequential(CreateCode):
     pass
 
 
-@_create_code(3, True, True)
+@_create_code('EPHEMERAL_SEQUENTIAL', 3, True, True)
 class EphemeralSequential(CreateCode):
     """
     The znode will be deleted upon the client's disconnect, and its name
@@ -166,121 +173,105 @@ def _zookeeper_exception(code):
 
 class ZookeeperError(RuntimeError):
     """ Parent exception for all zookeeper errors """
+    pass
 
-    def __init__(self, *args, **kwargs):
-        super(ZookeeperError, self).__init__(*args, **kwargs)
+
+@_zookeeper_exception(0)
+class RolledBackError(ZookeeperError):
+    pass
 
 
 @_zookeeper_exception(-1)
 class SystemZookeeperError(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(SystemZookeeperError, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-2)
 class RuntimeInconsistency(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(RuntimeInconsistency, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-3)
 class DataInconsistency(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(DataInconsistency, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-4)
 class ConnectionLoss(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(ConnectionLoss, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-5)
 class MarshallingError(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(MarshallingError, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-6)
 class Unimplemented(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(Unimplemented, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-7)
 class OperationTimeout(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(OperationTimeout, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-8)
 class BadArguments(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(BadArguments, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-100)
 class APIError(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(APIError, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-101)
 class NoNode(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(NoNode, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-102)
 class NoAuth(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(NoAuth, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-103)
 class BadVersion(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(BadVersion, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-108)
 class NoChildrenForEphemerals(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(NoChildrenForEphemerals, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-110)
 class NodeExists(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(NodeExists, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-111)
 class NotEmpty(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(NotEmpty, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-112)
 class SessionExpired(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(SessionExpired, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-113)
 class InvalidCallback(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(InvalidCallback, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-114)
 class InvalidACL(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(InvalidACL, self).__init__(*args, **kwargs)
+    pass
 
 
 @_zookeeper_exception(-115)
 class AuthFailed(ZookeeperError):
-    def __init__(self, *args, **kwargs):
-        super(AuthFailed, self).__init__(*args, **kwargs)
+    pass
 

@@ -18,7 +18,9 @@
 """
 
 class CheckVersionRequest:
+    type = 13
     def __init__(self, path, version):
+        self.type = self.__class__.type
         self.path = path
         self.version = version
 

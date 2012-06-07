@@ -21,6 +21,7 @@ from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
+from toolazydogs.zookeeper.packets.proto.CreateRequest import CreateRequest
 from toolazydogs.zookeeper.zookeeper import _collect_hosts
 
 
@@ -29,21 +30,25 @@ def test_CREATE_CODES():
     assert CREATE_CODES[0].flags == 0
     assert CREATE_CODES[0].ephemeral == False
     assert CREATE_CODES[0].sequential == False
+    assert str(CREATE_CODES[0]) == 'PERSISTENT'
 
     assert isinstance(CREATE_CODES[1], Ephemeral)
     assert CREATE_CODES[1].flags == 1
     assert CREATE_CODES[1].ephemeral == True
     assert CREATE_CODES[1].sequential == False
+    assert str(CREATE_CODES[1]) == 'EPHEMERAL'
 
     assert isinstance(CREATE_CODES[2], PersistentSequential)
     assert CREATE_CODES[2].flags == 2
     assert CREATE_CODES[2].ephemeral == False
     assert CREATE_CODES[2].sequential == True
+    assert str(CREATE_CODES[2]) == 'PERSISTENT_SEQUENTIAL'
 
     assert isinstance(CREATE_CODES[3], EphemeralSequential)
     assert CREATE_CODES[3].flags == 3
     assert CREATE_CODES[3].ephemeral == True
     assert CREATE_CODES[3].sequential == True
+    assert str(CREATE_CODES[3]) == 'EPHEMERAL_SEQUENTIAL'
 
 
 def test_EXCEPTIONS():
@@ -95,18 +100,18 @@ class Mine(Watcher):
 
 @attr('server')
 def test_zookeeper():
-    z = zookeeper.allocate('localhost/uscp-search', session_timeout=1.0)
-    z.watchers.add(Mine())
-
-    z.get_children('/')
-
-    time.sleep(10)
-
-    children, stat = z.get_children('/')
-    for child in children:
-        print child
-
-    z.close()
+#    z = zookeeper.allocate('localhost/uscp-search', session_timeout=1.0)
+#    z.watchers.add(Mine())
+#
+#    z.get_children('/')
+#
+#    time.sleep(10)
+#
+#    children, stat = z.get_children('/')
+#    for child in children:
+#        print child
+#
+#    z.close()
 
     z = zookeeper.allocate('localhost/uscp-search')
 
@@ -122,6 +127,26 @@ def test_zookeeper():
     z.set_acls('/acabrera', CREATOR_ALL_ACL + READ_ACL_UNSAFE, stat.aversion)
     acl = z.get_acls('/acabrera')
     z.sync('/acabrera')
+    if stat: z.delete('/acabrera', stat.version)
+
+    stat = z.exists('/foo')
+    if stat: z.delete('/foo', stat.version)
+    z.create('/foo', CREATOR_ALL_ACL, Persistent())
+    stat = z.exists('/foo')
+    transaction = z.allocate_transaction()
+    transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+    transaction.check('/foo', stat.version)
+    transaction.check('/bar', stat.version)
+    transaction.delete('/foo', stat.version)
+    results = transaction.commit()
+
+    transaction = z.allocate_transaction()
+    transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+    transaction.check('/foo', stat.version)
+    transaction.delete('/foo', stat.version)
+    results = transaction.commit()
+
+    stat = z.exists('/acabrera')
     if stat: z.delete('/acabrera', stat.version)
 
     z.close()

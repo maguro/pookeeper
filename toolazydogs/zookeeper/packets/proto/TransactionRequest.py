@@ -16,37 +16,30 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from toolazydogs.zookeeper.packets.proto.MultiHeader import MultiHeader
 
-class SetDataRequest:
-    type = 5
-    def __init__(self, path, data, version):
-        self.type = self.__class__.type
-        self.path = path
-        self.data = data
-        self.version = version
+
+class TransactionRequest:
+    def __init__(self, operations):
+        self.type = 14
+        self.operations = operations
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        output_archive.write_string(self.path, 'path')
-        output_archive.write_buffer(self.data, 'data')
-        output_archive.write_int(self.version, 'version')
+        for operation in self.operations:
+            MultiHeader(operation.type, False, -1).serialize(output_archive, tag)
+            operation.serialize(output_archive, tag)
+        MultiHeader(-1, True, -1).serialize(output_archive, tag)
         output_archive.end_record(tag)
 
-    def deserialize(self, input_archive, tag):
-        input_archive.start_record(tag)
-        self.path = input_archive.read_string('path')
-        self.data = input_archive.read_buffer('data')
-        self.version = input_archive.read_int('version')
-        input_archive.end_record(tag)
-
     def __repr__(self):
-        return 'SetDataRequest(%r, %r, %r)' % (self.path, self.data, self.version)
+        return 'TransactionRequest(%r)' % (self.operations)
 
     def __eq__(self, other):
-        return self.path == other.path and self.data == other.data and self.version == other.version
+        return self.operations == other.operations
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.path, self.data, self.version))
+        return hash((self.operations))

@@ -24,6 +24,7 @@ import threading
 from toolazydogs.zookeeper import EXCEPTIONS, NoNode
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
+from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
 from toolazydogs.zookeeper.packets.proto.CloseResponse import CloseResponse
 from toolazydogs.zookeeper.packets.proto.ConnectResponse import ConnectResponse
@@ -37,8 +38,6 @@ from toolazydogs.zookeeper.packets.proto.GetACLRequest import GetACLRequest
 from toolazydogs.zookeeper.packets.proto.GetACLResponse import GetACLResponse
 from toolazydogs.zookeeper.packets.proto.GetChildren2Request import GetChildren2Request
 from toolazydogs.zookeeper.packets.proto.GetChildren2Response import GetChildren2Response
-from toolazydogs.zookeeper.packets.proto.GetChildrenRequest import GetChildrenRequest
-from toolazydogs.zookeeper.packets.proto.GetChildrenResponse import GetChildrenResponse
 from toolazydogs.zookeeper.packets.proto.GetDataRequest import GetDataRequest
 from toolazydogs.zookeeper.packets.proto.GetDataResponse import GetDataResponse
 from toolazydogs.zookeeper.packets.proto.PingRequest import PingRequest
@@ -49,6 +48,8 @@ from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
 from toolazydogs.zookeeper.packets.proto.SetDataResponse import SetDataResponse
 from toolazydogs.zookeeper.packets.proto.SyncRequest import SyncRequest
 from toolazydogs.zookeeper.packets.proto.SyncResponse import SyncResponse
+from toolazydogs.zookeeper.packets.proto.TransactionRequest import TransactionRequest
+from toolazydogs.zookeeper.packets.proto.TransactionResponse import TransactionResponse
 from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
@@ -334,6 +335,17 @@ class Client(object):
 
         return response.children, response.stat
 
+    def allocate_transaction(self):
+        return _Transaction(self)
+
+    def _multi(self, operations):
+        request = TransactionRequest(operations)
+        response = TransactionResponse(None)
+
+        self._call(request, response)
+
+        return response.results
+
     def _call(self, request, response):
         call_exception = [None]
         event = threading.Event()
@@ -380,6 +392,49 @@ def _invoke(socket, request, response=None, xid=None):
         LOGGER.debug('Read response %r', response)
 
     return zxid
+
+
+class _Transaction(object):
+    def __init__(self, client):
+        self.client = client
+        self.operations = []
+        self.committed = False
+        self.lock = threading.RLock()
+
+    def create(self, path, acls, code, data=None):
+        self._add(CreateRequest(path, data, acls, code.flags))
+
+    def delete(self, path, version):
+        self._add(DeleteRequest(path, version))
+
+    def set_data(self, path, data, version):
+        self._add(SetDataRequest(path, data, version))
+
+    def check(self, path, version):
+        self._add(CheckVersionRequest(path, version))
+
+    def commit(self):
+        self.lock.acquire()
+        try:
+            self._check_state()
+            self.committed = True
+            LOGGER.debug('Committing on %r', self)
+            return self.client._multi(self.operations)
+        finally:
+            self.lock.release()
+
+    def _check_state(self):
+        if self.committed:
+            raise ValueError('Transaction already committed')
+
+    def _add(self, request):
+        self.lock.acquire()
+        try:
+            self._check_state()
+            LOGGER.debug('Added %r to %r', request, self)
+            self.operations.append(request)
+        finally:
+            self.lock.release()
 
 
 def _submit(socket, request, xid=None):

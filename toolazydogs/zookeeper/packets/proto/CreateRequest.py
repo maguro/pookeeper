@@ -18,8 +18,10 @@
 """
 
 class CreateRequest:
+    type = 1
+
     def __init__(self, path, data, acl, flags):
-        self.type = 1
+        self.type = self.__class__.type
         self.path = path
         self.data = data
         self.acl = acl
