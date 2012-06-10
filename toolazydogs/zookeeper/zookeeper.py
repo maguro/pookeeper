@@ -17,6 +17,7 @@
 from Queue import Queue, Empty
 import logging
 import random
+import select
 import socket
 import struct
 import threading
@@ -68,7 +69,8 @@ class Client(object):
 
 
         self.hosts, self.chroot = _collect_hosts(hosts)
-        random.shuffle(self.hosts)
+        self.chroot = '' if not self.chroot else self.chroot
+        if len(self.chroot) > 1 and self.chroot[-1:] == '/': self.chroot = self.chroot[:-1]
 
         self.session_id = session_id
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
@@ -112,12 +114,13 @@ class Client(object):
                     LOGGER.debug('    Using session_id: %r session_passwd: 0x%s', self.session_id, _hex(self.session_passwd))
 
                     s.connect((host, port))
+                    s.setblocking(0)
 
                     LOGGER.debug('Connected')
 
                     for scheme, auth in self.auth_data:
                         ap = AuthPacket(0, scheme, auth)
-                        zxid = _invoke(s, ap, xid=-4)
+                        zxid = _invoke(s, session_timeout, ap, xid=-4)
 
                     connect_request = ConnectRequest(0,
                                                      self.last_zxid,
@@ -127,7 +130,7 @@ class Client(object):
                                                      self.read_only)
                     connection_response = ConnectResponse(None, None, None, None)
 
-                    zxid = _invoke(s, connect_request, connection_response)
+                    zxid = _invoke(s, session_timeout, connect_request, connection_response)
 
                     if connection_response.timeOut < 0:
                         LOGGER.error('Session expired')
@@ -137,9 +140,13 @@ class Client(object):
                         if zxid: self.last_zxid = zxid
                         self.session_id = connection_response.sessionId
                         negotiated_session_timeout = connection_response.timeOut
+                        connect_timeout = negotiated_session_timeout / len(self.hosts)
+                        read_timeout = negotiated_session_timeout * 2.0 / 3.0
                         self.session_passwd = connection_response.passwd
                         LOGGER.debug('Session created, session_id: %r session_passwd: 0x%s', self.session_id, _hex(self.session_passwd))
                         LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
+                        LOGGER.debug('    connect timeout: %s', connect_timeout)
+                        LOGGER.debug('    read timeout: %s', read_timeout)
                         self._events.put(lambda w: w.sessionConnected(self.session_id, self.session_passwd))
 
                     reader_started = threading.Event()
@@ -149,7 +156,7 @@ class Client(object):
 
                         while True:
                             try:
-                                header, buffer = _read_header(s)
+                                header, buffer = _read_header(s, read_timeout)
                                 if header.xid == -2:
                                     LOGGER.debug('Received PING')
                                     continue
@@ -186,6 +193,7 @@ class Client(object):
                                     if isinstance(response, CloseResponse):
                                         LOGGER.debug('Read close response')
                                         reader_done.set()
+                                        break
                             except ConnectionDropped as ie:
                                 LOGGER.debug('Connection dropped for reader')
                                 break
@@ -202,13 +210,13 @@ class Client(object):
                     xid = 0
                     while not writer_done:
                         try:
-                            request, response, callback = self._queue.peek(True, negotiated_session_timeout / 2000.0)
+                            request, response, callback = self._queue.peek(True, read_timeout / 2000.0)
                             LOGGER.debug('Sending %r', request)
 
                             xid = xid + 1
                             LOGGER.debug('xid: %r', xid)
 
-                            _submit(s, request, xid)
+                            _submit(s, request, connect_timeout, xid)
 
                             if isinstance(request, CloseRequest):
                                 LOGGER.debug('Received close request, closing')
@@ -218,7 +226,7 @@ class Client(object):
                             self._pending.put((request, response, callback, xid))
                         except Empty:
                             LOGGER.debug('Queue timeout.  Sending PING')
-                            _submit(s, PingRequest(), -2)
+                            _submit(s, PingRequest(), connect_timeout, -2)
                         except Exception as e:
                             LOGGER.exception(e)
                             break
@@ -267,20 +275,20 @@ class Client(object):
             raise ValueError('ACLs cannot be None or empty')
         if not code:
             raise ValueError('Creation code cannot be None')
-        request = CreateRequest(path, data, acls, code.flags)
+        request = CreateRequest(_prefix_root(self.chroot, path), data, acls, code.flags)
         response = CreateResponse(None)
 
         self._call(request, response)
 
-        return response.path
+        return response.path[len(self.chroot)]
 
     def delete(self, path, version):
-        request = DeleteRequest(path, version)
+        request = DeleteRequest(_prefix_root(self.chroot, path), version)
 
         self._call(request, None)
 
     def exists(self, path, watch=False):
-        request = ExistsRequest(path, watch)
+        request = ExistsRequest(_prefix_root(self.chroot, path), watch)
         response = ExistsResponse(None)
 
         try:
@@ -290,7 +298,7 @@ class Client(object):
             return None
 
     def get_data(self, path, watch=False):
-        request = GetDataRequest(path, watch)
+        request = GetDataRequest(_prefix_root(self.chroot, path), watch)
         response = GetDataResponse(None, None)
 
         self._call(request, response)
@@ -298,7 +306,7 @@ class Client(object):
         return response.data, response.stat
 
     def set_data(self, path, data, version):
-        request = SetDataRequest(path, data, version)
+        request = SetDataRequest(_prefix_root(self.chroot, path), data, version)
         response = SetDataResponse(None)
 
         self._call(request, response)
@@ -306,7 +314,7 @@ class Client(object):
         return response.stat
 
     def get_acls(self, path):
-        request = GetACLRequest(path)
+        request = GetACLRequest(_prefix_root(self.chroot, path))
         response = GetACLResponse(None, None)
 
         self._call(request, response)
@@ -314,7 +322,7 @@ class Client(object):
         return response.acl, response.stat
 
     def set_acls(self, path, acls, version):
-        request = SetACLRequest(path, acls, version)
+        request = SetACLRequest(_prefix_root(self.chroot, path), acls, version)
         response = SetACLResponse(None)
 
         self._call(request, response)
@@ -322,29 +330,37 @@ class Client(object):
         return response.stat
 
     def sync(self, path):
-        request = SyncRequest(path)
+        request = SyncRequest(_prefix_root(self.chroot, path))
         response = SyncResponse(None)
 
         self._call(request, response)
 
     def get_children(self, path, watch=False):
-        request = GetChildren2Request(path, watch)
+        request = GetChildren2Request(_prefix_root(self.chroot, path), watch)
         response = GetChildren2Response(None, None)
 
         self._call(request, response)
 
-        return response.children, response.stat
+        # remove chroot prefix
+        l = len(self.chroot)
+        return [child[l:] for child in response.children], response.stat
 
     def allocate_transaction(self):
         return _Transaction(self)
 
-    def _multi(self, operations):
+    def _multi(self, operations, post_processors):
         request = TransactionRequest(operations)
         response = TransactionResponse(None)
 
         self._call(request, response)
 
-        return response.results
+        results = []
+        for e, p in zip(response.results, post_processors):
+            if isinstance(e, str) or isinstance(e, unicode):
+                e = p(e)
+            results.append(e)
+
+        return results
 
     def _call(self, request, response):
         call_exception = [None]
@@ -360,7 +376,7 @@ class Client(object):
             raise call_exception[0]
 
 
-def _invoke(socket, request, response=None, xid=None):
+def _invoke(socket, timeout, request, response=None, xid=None):
     oa = OutputArchive()
     if xid:
         oa.write_int(xid, 'xid')
@@ -370,10 +386,10 @@ def _invoke(socket, request, response=None, xid=None):
     socket.send(struct.pack('!i', len(oa.buffer)))
     socket.send(oa.buffer)
 
-    msg = _read(socket, 4)
+    msg = _read(socket, 4, timeout)
     length = struct.unpack_from('!i', msg, 0)[0]
 
-    msg = _read(socket, length)
+    msg = _read(socket, length, timeout)
     ia = InputArchive(msg)
 
     zxid = None
@@ -398,20 +414,22 @@ class _Transaction(object):
     def __init__(self, client):
         self.client = client
         self.operations = []
+        self.post_processors = []
         self.committed = False
         self.lock = threading.RLock()
 
     def create(self, path, acls, code, data=None):
-        self._add(CreateRequest(path, data, acls, code.flags))
+        self._add(CreateRequest(_prefix_root(self.client.chroot, path), data, acls, code.flags),
+                  lambda x: x[len(self.client.chroot):])
 
     def delete(self, path, version):
-        self._add(DeleteRequest(path, version))
+        self._add(DeleteRequest(_prefix_root(self.client.chroot, path), version))
 
     def set_data(self, path, data, version):
-        self._add(SetDataRequest(path, data, version))
+        self._add(SetDataRequest(_prefix_root(self.client.chroot, path), data, version))
 
     def check(self, path, version):
-        self._add(CheckVersionRequest(path, version))
+        self._add(CheckVersionRequest(_prefix_root(self.client.chroot, path), version))
 
     def commit(self):
         self.lock.acquire()
@@ -419,7 +437,7 @@ class _Transaction(object):
             self._check_state()
             self.committed = True
             LOGGER.debug('Committing on %r', self)
-            return self.client._multi(self.operations)
+            return self.client._multi(self.operations, self.post_processors)
         finally:
             self.lock.release()
 
@@ -427,32 +445,42 @@ class _Transaction(object):
         if self.committed:
             raise ValueError('Transaction already committed')
 
-    def _add(self, request):
+    def _add(self, request, post_processor=None):
         self.lock.acquire()
         try:
             self._check_state()
             LOGGER.debug('Added %r to %r', request, self)
             self.operations.append(request)
+            self.post_processors.append(post_processor if post_processor else lambda x: x)
         finally:
             self.lock.release()
 
 
-def _submit(socket, request, xid=None):
+def _submit(socket, request, timeout, xid=None):
     oa = OutputArchive()
-    if xid:
-        oa.write_int(xid, 'xid')
+    oa.write_int(xid, 'xid')
     if request.type:
         oa.write_int(request.type, 'type')
     request.serialize(oa, 'NA')
-    socket.send(struct.pack('!i', len(oa.buffer)))
-    socket.send(oa.buffer)
+    _write(socket, struct.pack('!i', len(oa.buffer)), timeout)
+    _write(socket, oa.buffer, timeout)
 
 
-def _read_header(socket):
-    msg = _read(socket, 4)
+def _write(socket, buffer, timeout):
+    sent = 0
+    while sent < len(buffer):
+        _, ready_to_write, _ = select.select([], [socket], [], timeout)
+        sent = ready_to_write[0].send(buffer[sent:])
+        if sent == 0:
+            raise ConnectionDropped("socket connection broken")
+        sent = sent + sent
+
+
+def _read_header(socket, timeout):
+    msg = _read(socket, 4, timeout)
     length = struct.unpack_from('!i', msg, 0)[0]
 
-    msg = _read(socket, length)
+    msg = _read(socket, length, timeout)
     ia = InputArchive(msg)
 
     header = ReplyHeader(None, None, None)
@@ -461,14 +489,35 @@ def _read_header(socket):
     return header, ia
 
 
-def _read(socket, length):
+def _read(socket, length, timeout):
     msg = ''
     while len(msg) < length:
-        chunk = socket.recv(length - len(msg))
+        ready_to_read, _, _ = select.select([socket], [], [], timeout)
+        chunk = ready_to_read[0].recv(length - len(msg))
         if chunk == '':
             raise ConnectionDropped("socket connection broken")
         msg = msg + chunk
     return msg
+
+
+class randomhost_iter:
+    def __init__(self, hosts):
+        self.last = 0
+        self.hosts = hosts
+
+    def __iter__(self):
+        return self
+
+    def __len__(self):
+        return len(self.hosts)
+
+    def next(self):
+        selected = self.last
+        if (len(self.hosts) > 1):
+            while selected == self.last:
+                selected = random.randint(0, len(self.hosts) - 1)
+            self.last = selected
+        return self.hosts[selected]
 
 
 def _collect_hosts(hosts):
@@ -497,7 +546,14 @@ def _collect_hosts(hosts):
             port = 2181
         result.append((host.strip(), port))
 
-    return (result, chroot)
+    return (randomhost_iter(result), chroot)
+
+
+def _prefix_root(root, path):
+    """ Prepend a root to a path. """
+    result = root + path
+    if len(result) > 1 and result[-1:] == '/': result = result[:-1]
+    return result
 
 
 def _hex(bindata):

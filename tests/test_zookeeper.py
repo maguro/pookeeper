@@ -21,7 +21,6 @@ from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
-from toolazydogs.zookeeper.packets.proto.CreateRequest import CreateRequest
 from toolazydogs.zookeeper.zookeeper import _collect_hosts
 
 
@@ -80,11 +79,37 @@ def test_EXCEPTIONS():
 
 
 def test_hosts():
-    assert ([('a', 1)], '/abc') == _collect_hosts('a:1/abc')
-    assert ([('a', 12913)], None) == _collect_hosts('a:12913')
-    assert ([('a', 2181)], None) == _collect_hosts('a')
-    assert ([('a', 2181)], '/abc') == _collect_hosts('a/abc')
-    assert ([('a', 1), ('b', 2), ('c', 2181)], '/abc') == _collect_hosts('a:1,b:2,c/abc')
+    hosts, root = _collect_hosts('a:1/abc')
+    assert root == '/abc'
+    assert hosts.next() == ('a', 1)
+
+    hosts, root = _collect_hosts('a:12913')
+    assert root == None
+    assert hosts.next() == ('a', 12913)
+
+    hosts, root = _collect_hosts('a')
+    assert root == None
+    assert hosts.next() == ('a', 2181)
+
+    hosts, root = _collect_hosts('a/abc')
+    assert root == '/abc'
+    assert hosts.next() == ('a', 2181)
+
+    hosts, root = _collect_hosts('a:1,b:2,c/abc')
+    assert root == '/abc'
+    s = set()
+    for host_port in hosts:
+        s.add(host_port)
+        if len(s) == 3: break
+    assert ('a', 1) in s
+    assert ('b', 2) in s
+    assert ('c', 2181) in s
+
+    count = 0
+    for host_port in hosts:
+        count = count + 1
+        if count > 16: break
+    assert count == 17
 
 
 class Mine(Watcher):
@@ -100,20 +125,22 @@ class Mine(Watcher):
 
 @attr('server')
 def test_zookeeper():
-#    z = zookeeper.allocate('localhost/uscp-search', session_timeout=1.0)
-#    z.watchers.add(Mine())
-#
-#    z.get_children('/')
-#
-#    time.sleep(10)
-#
-#    children, stat = z.get_children('/')
-#    for child in children:
-#        print child
-#
-#    z.close()
+    hosts = 'localhost/acabrera'
 
-    z = zookeeper.allocate('localhost/uscp-search')
+    z = zookeeper.allocate(hosts, session_timeout=1.0)
+    z.watchers.add(Mine())
+
+    z.get_children('/')
+
+#    time.sleep(10)
+
+    children, stat = z.get_children('/')
+    for child in children:
+        print child
+
+    z.close()
+
+    z = zookeeper.allocate(hosts)
 
     children, stat = z.get_children('/')
     children, stat = z.get_children('/')
@@ -160,3 +187,17 @@ def setup_module():
     console.setFormatter(logging.Formatter('%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'))
 
     logger.addHandler(console)
+
+    z = zookeeper.allocate('localhost', session_timeout=1.0)
+    stat = z.exists('/acabrera')
+    if not stat:
+        z.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+    z.close()
+
+
+def teardown_module():
+    z = zookeeper.allocate('localhost', session_timeout=1.0)
+    stat = z.exists('/acabrera')
+    if stat:
+        z.delete('/acabrera', stat.version)
+    z.close()
