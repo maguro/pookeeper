@@ -238,7 +238,6 @@ class Client(object):
                     s.close()
 
                     if writer_done:
-                        LOGGER.debug('BREAKING')
                         break
                 except ConnectionDropped as ie:
                     LOGGER.warning('Connection dropped')

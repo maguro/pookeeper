@@ -15,9 +15,9 @@
  under the License.
 """
 import logging
-import time
 
 from nose.plugins.attrib import attr
+import time
 
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
@@ -77,6 +77,8 @@ def test_EXCEPTIONS():
     except Exception:
         pass
 
+CHROOT = '/acabrera'
+HOSTS = 'localhost'
 
 def test_hosts():
     hosts, root = _collect_hosts('a:1/abc')
@@ -127,38 +129,60 @@ class Mine(Watcher):
 
 
 @attr('server')
-def test_zookeeper():
-    hosts = 'localhost/acabrera'
-
+@attr('slow')
+def test_ping():
+    hosts = HOSTS + CHROOT
     z = zookeeper.allocate(hosts, session_timeout=1.0)
     z.watchers.add(Mine())
 
-    z.get_children('/')
+    children, stat = z.get_children('/')
 
-#    time.sleep(10)
+    time.sleep(10)
 
     children, stat = z.get_children('/')
-    for child in children:
-        print child
 
     z.close()
+
+@attr('server')
+def test_zookeeper():
+    hosts = HOSTS + CHROOT
 
     z = zookeeper.allocate(hosts)
 
     children, stat = z.get_children('/')
     children, stat = z.get_children('/')
 
-    stat = z.exists('/acabrera')
-    if stat: z.delete('/acabrera', stat.version)
-    z.create('/acabrera', CREATOR_ALL_ACL, Persistent())
-    stat = z.exists('/acabrera')
-    stat = z.set_data('/acabrera', bytearray([0] * 16), stat.version)
-    data, stat = z.get_data('/acabrera')
-    z.set_acls('/acabrera', CREATOR_ALL_ACL + READ_ACL_UNSAFE, stat.aversion)
-    acl = z.get_acls('/acabrera')
-    z.sync('/acabrera')
-    if stat: z.delete('/acabrera', stat.version)
+    stat = z.exists('/pookie')
+    if stat: z.delete('/pookie', stat.version)
 
+    z.create('/pookie', CREATOR_ALL_ACL, Persistent())
+
+    stat = z.exists('/pookie')
+    stat = z.set_data('/pookie', bytearray([0] * 16), stat.version)
+
+    data, stat = z.get_data('/pookie')
+    assert data == bytearray([0] * 16)
+
+    z.set_acls('/pookie', CREATOR_ALL_ACL + READ_ACL_UNSAFE, stat.aversion)
+    acls, stat = z.get_acls('/pookie')
+    assert len(acls) == 2
+    for acl in acls:
+        assert acl in set(CREATOR_ALL_ACL + READ_ACL_UNSAFE)
+
+    z.sync('/pookie')
+    z.delete('/pookie', stat.version)
+
+    assert not z.exists('/pookie')
+
+    z.close()
+
+@attr('server')
+def test_transaction():
+    hosts = HOSTS + CHROOT
+
+    z = zookeeper.allocate(hosts)
+
+    # this should fail because /bar does not exist
     stat = z.exists('/foo')
     if stat: z.delete('/foo', stat.version)
     z.create('/foo', CREATOR_ALL_ACL, Persistent())
@@ -170,6 +194,10 @@ def test_zookeeper():
     transaction.delete('/foo', stat.version)
     results = transaction.commit()
 
+    assert not z.exists('/acabrera')
+    assert z.exists('/foo')
+
+    # this should succeed
     transaction = z.allocate_transaction()
     transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
     transaction.check('/foo', stat.version)
@@ -177,7 +205,9 @@ def test_zookeeper():
     results = transaction.commit()
 
     stat = z.exists('/acabrera')
-    if stat: z.delete('/acabrera', stat.version)
+    assert stat
+    z.delete('/acabrera', stat.version)
+    assert not z.exists('/foo')
 
     z.close()
 
@@ -191,16 +221,16 @@ def setup_module():
 
     logger.addHandler(console)
 
-    z = zookeeper.allocate('localhost', session_timeout=1.0)
-    stat = z.exists('/acabrera')
+    z = zookeeper.allocate(HOSTS, session_timeout=1.0)
+    stat = z.exists(CHROOT)
     if not stat:
-        z.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+        z.create(CHROOT, CREATOR_ALL_ACL, Persistent())
     z.close()
 
 
 def teardown_module():
-    z = zookeeper.allocate('localhost', session_timeout=1.0)
-    stat = z.exists('/acabrera')
+    z = zookeeper.allocate(HOSTS, session_timeout=1.0)
+    stat = z.exists(CHROOT)
     if stat:
-        z.delete('/acabrera', stat.version)
+        z.delete(CHROOT, stat.version)
     z.close()
