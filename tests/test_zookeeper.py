@@ -106,7 +106,10 @@ def test_hosts():
     assert ('c', 2181) in s
 
     count = 0
+    previous_host_port = None
     for host_port in hosts:
+        assert previous_host_port != host_port
+        previous_host_port = host_port
         count = count + 1
         if count > 16: break
     assert count == 17
