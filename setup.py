@@ -15,7 +15,7 @@
  under the License.
 """
 
-from setuptools import setup
+from setuptools import find_packages, setup
 from codecs import open
 
 from toolazydogs.zookeeper import __version__
