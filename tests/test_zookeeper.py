@@ -143,6 +143,7 @@ def test_ping():
 
     z.close()
 
+
 @attr('server')
 def test_zookeeper():
     hosts = HOSTS + CHROOT
@@ -175,6 +176,7 @@ def test_zookeeper():
     assert not z.exists('/pookie')
 
     z.close()
+
 
 @attr('server')
 def test_transaction():
@@ -220,17 +222,3 @@ def setup_module():
     console.setFormatter(logging.Formatter('%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'))
 
     logger.addHandler(console)
-
-    z = zookeeper.allocate(HOSTS, session_timeout=1.0)
-    stat = z.exists(CHROOT)
-    if not stat:
-        z.create(CHROOT, CREATOR_ALL_ACL, Persistent())
-    z.close()
-
-
-def teardown_module():
-    z = zookeeper.allocate(HOSTS, session_timeout=1.0)
-    stat = z.exists(CHROOT)
-    if stat:
-        z.delete(CHROOT, stat.version)
-    z.close()
