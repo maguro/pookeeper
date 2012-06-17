@@ -22,7 +22,7 @@ import socket
 import struct
 import threading
 
-from toolazydogs.zookeeper import EXCEPTIONS, NoNode
+from toolazydogs.zookeeper import EXCEPTIONS, NoNode, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
@@ -86,6 +86,9 @@ class Client(object):
         self.watchers = set()
         self._events = Queue()
 
+        self._state = CONNECTING
+        self._state_lock = threading.RLock()
+
         def event_worker():
             while True:
                 notification = self._events.get()
@@ -108,6 +111,8 @@ class Client(object):
             reader_done = threading.Event()
 
             for host, port in self.hosts:
+                self._state = CONNECTING
+
                 s = socket.socket()
                 try:
                     LOGGER.info('Connecting to %s:%s', host, port)
@@ -118,9 +123,7 @@ class Client(object):
 
                     LOGGER.debug('Connected')
 
-                    for scheme, auth in self.auth_data:
-                        ap = AuthPacket(0, scheme, auth)
-                        zxid = _invoke(s, session_timeout, ap, xid=-4)
+                    self._state = CONNECTED
 
                     connect_request = ConnectRequest(0,
                                                      self.last_zxid,
@@ -147,7 +150,11 @@ class Client(object):
                         LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
                         LOGGER.debug('    connect timeout: %s', connect_timeout)
                         LOGGER.debug('    read timeout: %s', read_timeout)
-                        self._events.put(lambda w: w.sessionConnected(self.session_id, self.session_passwd))
+                        self._events.put(lambda w: w.sessionConnected(self.session_id, self.session_passwd, self.read_only))
+
+                    for scheme, auth in self.auth_data:
+                        ap = AuthPacket(0, scheme, auth)
+                        zxid = _invoke(s, connect_timeout, ap, xid=-4)
 
                     reader_started = threading.Event()
 
@@ -167,7 +174,20 @@ class Client(object):
                                     LOGGER.debug('Received EVENT')
                                     watcher_event = WatcherEvent(None, None, None)
                                     watcher_event.deserialize(buffer, 'event')
-                                    self._events.put(lambda watcher: watcher.event(watcher_event.type, watcher_event.state, watcher_event.path))
+
+                                    if watcher_event.type == 1:
+                                        event = lambda watcher: watcher.node_created(watcher_event.path)
+                                    elif watcher_event == 2:
+                                        event = lambda watcher: watcher.node_deleted(watcher_event.path)
+                                    elif watcher_event == 3:
+                                        event = lambda watcher: watcher.data_changed(watcher_event.path)
+                                    elif watcher_event == 4:
+                                        event = lambda watcher: watcher.children_changed(watcher_event.path)
+                                    else:
+                                        LOGGER.warn('Received unknown event %r', watcher_event.type)
+                                        continue
+
+                                    self._events.put(event)
                                 else:
                                     LOGGER.debug('Reading for header %r', header)
 
@@ -250,16 +270,22 @@ class Client(object):
         writer_started.wait()
 
     def close(self):
-        call_exception = None
-        event = threading.Event()
+        self._state_lock.acquire()
+        try:
+            self._check_state([AUTH_FAILED, CLOSED])
 
-        def close(exception):
-            global call_exception
-            call_exception = exception
-            event.set()
-            LOGGER.debug('Closing handler called')
+            call_exception = None
+            event = threading.Event()
 
-        self._queue.put((CloseRequest(), CloseResponse(), close))
+            def close(exception):
+                global call_exception
+                call_exception = exception
+                event.set()
+                LOGGER.debug('Closing handler called')
+
+            self._queue.put((CloseRequest(), CloseResponse(), close))
+        finally:
+            self._state_lock.release()
 
         event.wait()
 
@@ -347,32 +373,38 @@ class Client(object):
     def allocate_transaction(self):
         return _Transaction(self)
 
-    def _multi(self, operations, post_processors):
+    def _multi(self, operations):
         request = TransactionRequest(operations)
         response = TransactionResponse(None)
 
         self._call(request, response)
 
-        results = []
-        for e, p in zip(response.results, post_processors):
-            if isinstance(e, str) or isinstance(e, unicode):
-                e = p(e)
-            results.append(e)
-
-        return results
+        return response.results
 
     def _call(self, request, response):
-        call_exception = [None]
-        event = threading.Event()
+        self._state_lock.acquire()
+        try:
+            self._check_state([AUTH_FAILED, CLOSED])
 
-        def callback(exception):
-            call_exception[0] = exception
-            event.set()
+            call_exception = [None]
+            event = threading.Event()
 
-        self._queue.put((request, response, callback))
+            def callback(exception):
+                call_exception[0] = exception
+                event.set()
+
+            self._queue.put((request, response, callback))
+        finally:
+            self._state_lock.release()
+
         event.wait()
         if call_exception[0]:
             raise call_exception[0]
+
+    def _check_state(self, invalid_states):
+        for state in invalid_states:
+            if self._state == state:
+                raise ValueError(state.description)
 
 
 def _invoke(socket, timeout, request, response=None, xid=None):
@@ -433,21 +465,28 @@ class _Transaction(object):
     def commit(self):
         self.lock.acquire()
         try:
-            self._check_state()
+            self._check_tx_state()
             self.committed = True
             LOGGER.debug('Committing on %r', self)
-            return self.client._multi(self.operations, self.post_processors)
+
+            results = []
+            for e, p in zip(self.client._multi(self.operations), post_processors):
+                if isinstance(e, str) or isinstance(e, unicode):
+                    e = p(e)
+                results.append(e)
+
+            return results
         finally:
             self.lock.release()
 
-    def _check_state(self):
+    def _check_tx_state(self):
         if self.committed:
             raise ValueError('Transaction already committed')
 
     def _add(self, request, post_processor=None):
         self.lock.acquire()
         try:
-            self._check_state()
+            self._check_tx_state()
             LOGGER.debug('Added %r to %r', request, self)
             self.operations.append(request)
             self.post_processors.append(post_processor if post_processor else lambda x: x)

@@ -61,7 +61,7 @@ class PeekableQueue(Queue):
 
 
 class Watcher(object):
-    def sessionConnected(self, session_id, session_password):
+    def sessionConnected(self, session_id, session_password, read_only):
         pass
 
     def sessionExpired(self, session_id):
@@ -76,7 +76,35 @@ def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, 
     return handle
 
 
-def _invalid_create_flag(): raise RuntimeError('Invalid create code')
+class State(object):
+    def __init__(self, code, description):
+        self.code = code
+        self.description = description
+
+
+class Connecting(State):
+    def __init__(self):
+        super(Connecting, self).__init__('CONNECTING', 'Connecting')
+
+
+class Connected(State):
+    def __init__(self):
+        super(Connected, self).__init__('Connected', 'Connected')
+
+
+class AuthFailed(State):
+    def __init__(self):
+        super(AuthFailed, self).__init__('AUTH_FAILED', 'Authorization Failed')
+
+
+class Closed(State):
+    def __init__(self):
+        super(Closed, self).__init__('CLOSED', 'Closed')
+
+CONNECTING = Connecting()
+CONNECTED = Connected()
+AUTH_FAILED = AuthFailed()
+CLOSED = Closed()
 
 CREATE_CODES = {}
 
