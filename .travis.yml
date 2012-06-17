@@ -6,4 +6,4 @@ python:
 # command to install 
 install: python setup.py install
 # command to run tests
-script:  nosetests
+script:  nosetests -a '!server'
