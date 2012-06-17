@@ -29,7 +29,7 @@ setup(
     author_email = 'adc@toolazydogs.com',
     description = 'Pure Python bindings for Apache Zookeeper.',
     # don't ever depend on refcounting to close files anywhere else
-    long_description = open('README.md', encoding='utf-8').read(),
+    long_description = open('README.rst', encoding='utf-8').read(),
     packages = find_packages(exclude=['examples', 'tests']),
     zip_safe = False,
     platforms = 'any',
