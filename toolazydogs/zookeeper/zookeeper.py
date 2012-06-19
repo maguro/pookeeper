@@ -22,6 +22,7 @@ import socket
 import struct
 import threading
 
+from toolazydogs.zookeeper import zkpath
 from toolazydogs.zookeeper import EXCEPTIONS, NoNode, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
@@ -68,9 +69,13 @@ class Client(object):
         from toolazydogs.zookeeper import PeekableQueue
 
 
-        self.hosts, self.chroot = _collect_hosts(hosts)
-        self.chroot = '' if not self.chroot else self.chroot
-        if len(self.chroot) > 1 and self.chroot[-1:] == '/': self.chroot = self.chroot[:-1]
+        self.hosts, chroot = _collect_hosts(hosts)
+        if chroot:
+            self.chroot = zkpath.normpath(chroot)
+            if not zkpath.isabs(self.chroot):
+                raise ValueError("chroot not absolute")
+        else:
+            self.chroot = ""
 
         self.session_id = session_id
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
@@ -361,14 +366,17 @@ class Client(object):
         self._call(request, response)
 
     def get_children(self, path, watch=False):
-        request = GetChildren2Request(_prefix_root(self.chroot, path), watch)
+        full_path = _prefix_root(self.chroot, path)
+        request = GetChildren2Request(full_path, watch)
         response = GetChildren2Response(None, None)
 
         self._call(request, response)
 
-        # remove chroot prefix
-        l = len(self.chroot)
-        return [child[l:] for child in response.children], response.stat
+        # XXX: Return basenames. Is this needed or will children always be
+        # basenames? Earlier a too naive approach was used to remove the chroot
+        # prefix from response.children.
+        return [zkpath.basename(child) for child in response.children], \
+                response.stat
 
     def allocate_transaction(self):
         return _Transaction(self)
@@ -559,39 +567,24 @@ class randomhost_iter:
 
 
 def _collect_hosts(hosts):
-    index = hosts.find('/')
-    if index > 0:
-        host_ports = hosts[:index]
-        chroot = hosts[index:]
-    else:
-        host_ports = hosts
-        chroot = None
-
-    x = []
-    if host_ports.find(',') > 0:
-        x.extend(host_ports.split(','))
-    else:
-        x.append(host_ports)
+    host_ports, chroot = hosts.partition("/")[::2]
+    chroot = "/" + chroot if chroot else None
 
     result = []
-    for host_port in x:
-        index = host_port.find(':')
-        if index > 0:
-            port = int(host_port[index + 1:])
-            host = host_port[:index]
-        else:
-            host = host_port
-            port = 2181
+    for host_port in host_ports.split(","):
+        host, port = host_port.partition(":")[::2]
+        port = int(port.strip()) if port else 2181
         result.append((host.strip(), port))
-
     return (randomhost_iter(result), chroot)
 
 
 def _prefix_root(root, path):
     """ Prepend a root to a path. """
-    result = root + path
-    if len(result) > 1 and result[-1:] == '/': result = result[:-1]
-    return result
+    return zkpath.normpath(zkpath.join(_norm_root(root), path.lstrip("/")))
+
+
+def _norm_root(root):
+    return zkpath.normpath(zkpath.join("/", root))
 
 
 def _hex(bindata):
