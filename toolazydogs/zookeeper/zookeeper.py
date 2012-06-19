@@ -369,14 +369,8 @@ class Client(object):
         full_path = _prefix_root(self.chroot, path)
         request = GetChildren2Request(full_path, watch)
         response = GetChildren2Response(None, None)
-
         self._call(request, response)
-
-        # XXX: Return basenames. Is this needed or will children always be
-        # basenames? Earlier a too naive approach was used to remove the chroot
-        # prefix from response.children.
-        return [zkpath.basename(child) for child in response.children], \
-                response.stat
+        return response.children, response.stat
 
     def allocate_transaction(self):
         return _Transaction(self)
