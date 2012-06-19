@@ -470,7 +470,7 @@ class _Transaction(object):
             LOGGER.debug('Committing on %r', self)
 
             results = []
-            for e, p in zip(self.client._multi(self.operations), post_processors):
+            for e, p in zip(self.client._multi(self.operations), self.post_processors):
                 if isinstance(e, str) or isinstance(e, unicode):
                     e = p(e)
                 results.append(e)
