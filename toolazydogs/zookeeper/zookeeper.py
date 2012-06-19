@@ -366,8 +366,7 @@ class Client(object):
         self._call(request, response)
 
     def get_children(self, path, watch=False):
-        full_path = _prefix_root(self.chroot, path)
-        request = GetChildren2Request(full_path, watch)
+        request = GetChildren2Request(_prefix_root(self.chroot, path), watch)
         response = GetChildren2Response(None, None)
         self._call(request, response)
         return response.children, response.stat
