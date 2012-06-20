@@ -19,9 +19,10 @@ import time
 
 from nose.plugins.attrib import attr
 
+from toolazydogs.zookeeper import zkpath
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
-from toolazydogs.zookeeper.zookeeper import _collect_hosts
+from toolazydogs.zookeeper.zookeeper import _collect_hosts, _prefix_root
 
 
 def test_CREATE_CODES():
@@ -93,6 +94,10 @@ def test_hosts():
     assert root == None
     assert hosts.next() == ('a', 2181)
 
+    hosts, root = _collect_hosts('a/')
+    assert root == None
+    assert hosts.next() == ('a', 2181)
+
     hosts, root = _collect_hosts('a/abc')
     assert root == '/abc'
     assert hosts.next() == ('a', 2181)
@@ -115,6 +120,21 @@ def test_hosts():
         count = count + 1
         if count > 16: break
     assert count == 17
+
+
+def test_prefix_root():
+    def check_equal(a, b):
+        assert a == b, "{} != {}".format(a, b)
+
+    for root, path, full_path in [
+            ("", "foo", "/foo"),
+            ("", "/foo", "/foo"),
+            ("/", "foo", "/foo"),
+            ("/moo/", "/foo/", "/moo/foo"),
+            ("/moo", "foo/", "/moo/foo"),
+            ]:
+        prefixed_root = _prefix_root(root, path)
+        yield check_equal, prefixed_root, full_path
 
 
 class Mine(Watcher):
