@@ -16,7 +16,6 @@
 """
 from Queue import Queue, Empty
 import logging
-import random
 import select
 import socket
 import struct
@@ -25,6 +24,7 @@ import threading
 from toolazydogs.zookeeper import zkpath
 from toolazydogs.zookeeper import EXCEPTIONS, NoNode, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
+from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
@@ -69,7 +69,7 @@ class Client(object):
         from toolazydogs.zookeeper import PeekableQueue
 
 
-        self.hosts, chroot = _collect_hosts(hosts)
+        self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
             if not zkpath.isabs(self.chroot):
@@ -537,38 +537,6 @@ def _read(socket, length, timeout):
             raise ConnectionDropped("socket connection broken")
         msg = msg + chunk
     return msg
-
-
-class randomhost_iter:
-    def __init__(self, hosts):
-        self.last = 0
-        self.hosts = hosts
-
-    def __iter__(self):
-        return self
-
-    def __len__(self):
-        return len(self.hosts)
-
-    def next(self):
-        selected = self.last
-        if (len(self.hosts) > 1):
-            while selected == self.last:
-                selected = random.randint(0, len(self.hosts) - 1)
-            self.last = selected
-        return self.hosts[selected]
-
-
-def _collect_hosts(hosts):
-    host_ports, chroot = hosts.partition("/")[::2]
-    chroot = "/" + chroot if chroot else None
-
-    result = []
-    for host_port in host_ports.split(","):
-        host, port = host_port.partition(":")[::2]
-        port = int(port.strip()) if port else 2181
-        result.append((host.strip(), port))
-    return (randomhost_iter(result), chroot)
 
 
 def _prefix_root(root, path):

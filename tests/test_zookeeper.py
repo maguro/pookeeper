@@ -19,10 +19,10 @@ import time
 
 from nose.plugins.attrib import attr
 
-from toolazydogs.zookeeper import zkpath
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
-from toolazydogs.zookeeper.zookeeper import _collect_hosts, _prefix_root
+from toolazydogs.zookeeper.hosts import collect_hosts
+from toolazydogs.zookeeper.zookeeper import _prefix_root
 
 
 def test_CREATE_CODES():
@@ -82,27 +82,27 @@ CHROOT = '/acabrera'
 HOSTS = 'localhost'
 
 def test_hosts():
-    hosts, root = _collect_hosts('a:1/abc')
+    hosts, root = collect_hosts('a:1/abc')
     assert root == '/abc'
     assert hosts.next() == ('a', 1)
 
-    hosts, root = _collect_hosts('a:12913')
+    hosts, root = collect_hosts('a:12913')
     assert root == None
     assert hosts.next() == ('a', 12913)
 
-    hosts, root = _collect_hosts('a')
+    hosts, root = collect_hosts('a')
     assert root == None
     assert hosts.next() == ('a', 2181)
 
-    hosts, root = _collect_hosts('a/')
+    hosts, root = collect_hosts('a/')
     assert root == None
     assert hosts.next() == ('a', 2181)
 
-    hosts, root = _collect_hosts('a/abc')
+    hosts, root = collect_hosts('a/abc')
     assert root == '/abc'
     assert hosts.next() == ('a', 2181)
 
-    hosts, root = _collect_hosts('a:1,b:2,c/abc')
+    hosts, root = collect_hosts('a:1,b:2,c/abc')
     assert root == '/abc'
     s = set()
     for host_port in hosts:
@@ -127,12 +127,12 @@ def test_prefix_root():
         assert a == b, "{} != {}".format(a, b)
 
     for root, path, full_path in [
-            ("", "foo", "/foo"),
-            ("", "/foo", "/foo"),
-            ("/", "foo", "/foo"),
-            ("/moo/", "/foo/", "/moo/foo"),
-            ("/moo", "foo/", "/moo/foo"),
-            ]:
+        ("", "foo", "/foo"),
+        ("", "/foo", "/foo"),
+        ("/", "foo", "/foo"),
+        ("/moo/", "/foo/", "/moo/foo"),
+        ("/moo", "foo/", "/moo/foo"),
+    ]:
         prefixed_root = _prefix_root(root, path)
         yield check_equal, prefixed_root, full_path
 
@@ -141,7 +141,7 @@ class Mine(Watcher):
     def __init__(self):
         pass
 
-    def sessionConnected(self, session_id, session_password):
+    def sessionConnected(self, session_id, session_password, read_only):
         print 'CONNECTED'
 
     def sessionExpired(self, session_id):
