@@ -21,7 +21,7 @@ from time import time as _time
 from toolazydogs.zookeeper.packets.data.ACL import ACL
 from toolazydogs.zookeeper.packets.data.Id import Id
 
-__version__ = '0.1.0'
+__version__ = '1.0.0-dev'
 
 class PeekableQueue(Queue):
     def __init__(self, maxsize=0):
