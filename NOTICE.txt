@@ -3,3 +3,9 @@
 ==  Version 2.0, in this case for the LiveTribe SLP distribution.      ==
 =========================================================================
 
+This product includes code developed for Python standard library
+(http://svn.python.org/projects/python/branches/release27-maint/Lib/posixpath.py
+/). and is licensed under the PSFL, http://docs.python.org/license.html, which
+can be linked with libraries of other licenses and allows changes to be released
+under different licenses. The Pookeeper project elects to include this software
+in this distribution under the AL 2.0 license.

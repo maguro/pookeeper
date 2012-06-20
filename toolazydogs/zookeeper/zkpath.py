@@ -3,13 +3,12 @@
 :func:`normpath` has been modified not to allow relative paths.
 
 :mod:`posixpath` is part of the Python standard library, and is licensed under
-the `PSFL <http://docs.python.org/license.html>`_, which can be linked with
-libraries of other licenses and allows changes to be released under different
-licenes.
+the `Python Software Foundation License <http://docs.python.org/license.html>`_,
+which can be linked with libraries of other licenses and allows changes to be
+released under different licenses. See LICENSE.txt for a copy of the PSFL.
 
 The original code can be found `here 
-<http://svn.python.org/projects/python/branches/release27-maint/Lib/posixpath.py`_.
-The code is based on revision 88979.
+<http://hg.python.org/releasing/2.7.3/file/7bb96963d067/Lib/posixpath.py>`_.
 
 The following license text refers to changes to the original code:
 
