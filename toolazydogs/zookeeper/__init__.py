@@ -90,7 +90,7 @@ class Connecting(State):
 
 class Connected(State):
     def __init__(self):
-        super(Connected, self).__init__('Connected', 'Connected')
+        super(Connected, self).__init__('CONNECTED', 'Connected')
 
 
 class AuthFailed(State):
