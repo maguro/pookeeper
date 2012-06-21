@@ -31,17 +31,17 @@ The following license text refers to changes to the original code:
 def normpath(path):
     """Normalize path, eliminating double slashes, etc. 
     """
-    comps = path.split("/")
+    comps = path.split('/')
     new_comps = []
     for comp in comps:
-        if comp == "":
+        if comp == '':
             continue
-        if comp in (".", ".."):
-            raise ValueError("relative paths not allowed")
+        if comp in ('.', '..'):
+            raise ValueError('relative paths not allowed')
         new_comps.append(comp)
-    slash = u"/" if isinstance(path, unicode) else "/"
+    slash = u'/' if isinstance(path, unicode) else '/'
     new_path = slash.join(new_comps)
-    if path.startswith("/"):
+    if path.startswith('/'):
         return slash + new_path
     return new_path
 
@@ -64,7 +64,7 @@ def join(a, *p):
 
 def isabs(s):
     """Test whether a path is absolute. """
-    return s.startswith("/")
+    return s.startswith('/')
 
 
 def basename(p):

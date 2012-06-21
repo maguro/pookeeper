@@ -124,14 +124,14 @@ def test_hosts():
 
 def test_prefix_root():
     def check_equal(a, b):
-        assert a == b, "{} != {}".format(a, b)
+        assert a == b, '{} != {}'.format(a, b)
 
     for root, path, full_path in [
-        ("", "foo", "/foo"),
-        ("", "/foo", "/foo"),
-        ("/", "foo", "/foo"),
-        ("/moo/", "/foo/", "/moo/foo"),
-        ("/moo", "foo/", "/moo/foo"),
+        ('', 'foo', '/foo'),
+        ('', '/foo', '/foo'),
+        ('/', 'foo', '/foo'),
+        ('/moo/', '/foo/', '/moo/foo'),
+        ('/moo', 'foo/', '/moo/foo'),
     ]:
         prefixed_root = _prefix_root(root, path)
         yield check_equal, prefixed_root, full_path

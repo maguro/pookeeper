@@ -73,9 +73,9 @@ class Client(object):
         if chroot:
             self.chroot = zkpath.normpath(chroot)
             if not zkpath.isabs(self.chroot):
-                raise ValueError("chroot not absolute")
+                raise ValueError('chroot not absolute')
         else:
-            self.chroot = ""
+            self.chroot = ''
 
         self.session_id = session_id
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
@@ -511,7 +511,7 @@ def _write(socket, buffer, timeout):
         _, ready_to_write, _ = select.select([], [socket], [], timeout)
         sent = ready_to_write[0].send(buffer[sent:])
         if sent == 0:
-            raise ConnectionDropped("socket connection broken")
+            raise ConnectionDropped('socket connection broken')
         sent = sent + sent
 
 
@@ -534,18 +534,18 @@ def _read(socket, length, timeout):
         ready_to_read, _, _ = select.select([socket], [], [], timeout)
         chunk = ready_to_read[0].recv(length - len(msg))
         if chunk == '':
-            raise ConnectionDropped("socket connection broken")
+            raise ConnectionDropped('socket connection broken')
         msg = msg + chunk
     return msg
 
 
 def _prefix_root(root, path):
     """ Prepend a root to a path. """
-    return zkpath.normpath(zkpath.join(_norm_root(root), path.lstrip("/")))
+    return zkpath.normpath(zkpath.join(_norm_root(root), path.lstrip('/')))
 
 
 def _norm_root(root):
-    return zkpath.normpath(zkpath.join("/", root))
+    return zkpath.normpath(zkpath.join('/', root))
 
 
 def _hex(bindata):
