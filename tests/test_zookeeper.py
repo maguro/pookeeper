@@ -147,6 +147,9 @@ class Mine(Watcher):
     def sessionExpired(self, session_id):
         print 'EXPIRED'
 
+    def connectionDropped(self):
+        print 'DROPPED'
+
 
 @attr('server')
 @attr('slow')

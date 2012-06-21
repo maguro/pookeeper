@@ -14,12 +14,13 @@
  specific language governing permissions and limitations
  under the License.
 """
-from Queue import Queue, Empty
+from Queue import Queue, Empty, Full
 from collections import defaultdict
 
 from time import time as _time
 from toolazydogs.zookeeper.packets.data.ACL import ACL
 from toolazydogs.zookeeper.packets.data.Id import Id
+
 
 __version__ = '1.0.0-dev'
 
@@ -60,12 +61,53 @@ class PeekableQueue(Queue):
         finally:
             self.not_empty.release()
 
+    def put_front(self, item, block=True, timeout=None):
+        """Put an item into the queue.
+
+        If optional args 'block' is true and 'timeout' is None (the default),
+        block if necessary until a free slot is available. If 'timeout' is
+        a positive number, it blocks at most 'timeout' seconds and raises
+        the Full exception if no free slot was available within that time.
+        Otherwise ('block' is false), put an item on the queue if a free slot
+        is immediately available, else raise the Full exception ('timeout'
+        is ignored in that case).
+        """
+        self.not_full.acquire()
+        try:
+            if self.maxsize > 0:
+                if not block:
+                    if self._qsize() == self.maxsize:
+                        raise Full
+                elif timeout is None:
+                    while self._qsize() == self.maxsize:
+                        self.not_full.wait()
+                elif timeout < 0:
+                    raise ValueError("'timeout' must be a positive number")
+                else:
+                    endtime = _time() + timeout
+                    while self._qsize() == self.maxsize:
+                        remaining = endtime - _time()
+                        if remaining <= 0.0:
+                            raise Full
+                        self.not_full.wait(remaining)
+            self.queue.appendLeft(item)
+            self.unfinished_tasks += 1
+            self.not_empty.notify()
+        finally:
+            self.not_full.release()
+
 
 class Watcher(object):
     def sessionConnected(self, session_id, session_password, read_only):
         pass
 
     def sessionExpired(self, session_id):
+        pass
+
+    def connectionDropped(self):
+        pass
+
+    def connectionClosed(self):
         pass
 
 

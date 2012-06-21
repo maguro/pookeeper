@@ -118,7 +118,8 @@ class Client(object):
             for host, port in self.hosts:
                 self._state = CONNECTING
 
-                s = socket.socket()
+                s = _allocate_socket()
+
                 try:
                     LOGGER.info('Connecting to %s:%s', host, port)
                     LOGGER.debug('    Using session_id: %r session_passwd: 0x%s', self.session_id, _hex(self.session_passwd))
@@ -164,6 +165,13 @@ class Client(object):
                     reader_started = threading.Event()
 
                     def reader():
+                        """ The reader thread
+
+                        The reader thread is quite passive, simply reading
+                        "packets' off the socket and dispatching them.  It
+                        assumes that the writer thread will perform all the
+                        cleanup and state orchestration.
+                        """
                         reader_started.set()
 
                         while True:
@@ -266,8 +274,11 @@ class Client(object):
                         break
                 except ConnectionDropped as ie:
                     LOGGER.warning('Connection dropped')
+                    self._events.put(lambda w: w.connectionDropped())
                 except Exception as e:
                     LOGGER.exception(e)
+
+            self._events.put(lambda w: w.connectionClosed())
 
         writer_thread = threading.Thread(target=writer)
         writer_thread.start()
@@ -401,6 +412,12 @@ class Client(object):
         event.wait()
         if call_exception[0]:
             raise call_exception[0]
+
+    def _allocate_socket(self):
+        """ Used to allow the replacement of a socket with a mock socket
+        """
+        return socket.socket()
+
 
     def _check_state(self, invalid_states):
         for state in invalid_states:
