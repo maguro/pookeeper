@@ -20,7 +20,7 @@ import time
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
-from toolazydogs.zookeeper import  Watcher, EXCEPTIONS, SystemZookeeperError, DataInconsistency, RuntimeInconsistency, ConnectionLoss, MarshallingError, Unimplemented, OperationTimeout, BadArguments, APIError, NoNode, NoAuth, NoChildrenForEphemerals, BadVersion, NodeExists, NotEmpty, SessionExpired, InvalidCallback, InvalidACL, AuthFailed, Persistent, CREATE_CODES, Ephemeral, PersistentSequential, EphemeralSequential, CREATOR_ALL_ACL, READ_ACL_UNSAFE
+from toolazydogs.zookeeper import CREATE_CODES, Persistent, Ephemeral, PersistentSequential, EXCEPTIONS, APIError, InvalidACLError, AuthFailedError, InvalidCallbackError, SessionExpiredError, NotEmptyError, NodeExistsError, NoChildrenForEphemeralsError, BadVersionError, NoAuthError, NoNodeError, BadArgumentsError, OperationTimeoutError, UnimplementedError, MarshallingError, ConnectionLoss, DataInconsistency, RuntimeInconsistency, SystemZookeeperError, EphemeralSequential, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.zookeeper import _prefix_root
 
@@ -57,20 +57,20 @@ def test_EXCEPTIONS():
     assert isinstance(EXCEPTIONS[-3](), DataInconsistency)
     assert isinstance(EXCEPTIONS[-4](), ConnectionLoss)
     assert isinstance(EXCEPTIONS[-5](), MarshallingError)
-    assert isinstance(EXCEPTIONS[-6](), Unimplemented)
-    assert isinstance(EXCEPTIONS[-7](), OperationTimeout)
-    assert isinstance(EXCEPTIONS[-8](), BadArguments)
+    assert isinstance(EXCEPTIONS[-6](), UnimplementedError)
+    assert isinstance(EXCEPTIONS[-7](), OperationTimeoutError)
+    assert isinstance(EXCEPTIONS[-8](), BadArgumentsError)
     assert isinstance(EXCEPTIONS[-100](), APIError)
-    assert isinstance(EXCEPTIONS[-101](), NoNode)
-    assert isinstance(EXCEPTIONS[-102](), NoAuth)
-    assert isinstance(EXCEPTIONS[-103](), BadVersion)
-    assert isinstance(EXCEPTIONS[-108](), NoChildrenForEphemerals)
-    assert isinstance(EXCEPTIONS[-110](), NodeExists)
-    assert isinstance(EXCEPTIONS[-111](), NotEmpty)
-    assert isinstance(EXCEPTIONS[-112](), SessionExpired)
-    assert isinstance(EXCEPTIONS[-113](), InvalidCallback)
-    assert isinstance(EXCEPTIONS[-114](), InvalidACL)
-    assert isinstance(EXCEPTIONS[-115](), AuthFailed)
+    assert isinstance(EXCEPTIONS[-101](), NoNodeError)
+    assert isinstance(EXCEPTIONS[-102](), NoAuthError)
+    assert isinstance(EXCEPTIONS[-103](), BadVersionError)
+    assert isinstance(EXCEPTIONS[-108](), NoChildrenForEphemeralsError)
+    assert isinstance(EXCEPTIONS[-110](), NodeExistsError)
+    assert isinstance(EXCEPTIONS[-111](), NotEmptyError)
+    assert isinstance(EXCEPTIONS[-112](), SessionExpiredError)
+    assert isinstance(EXCEPTIONS[-113](), InvalidCallbackError)
+    assert isinstance(EXCEPTIONS[-114](), InvalidACLError)
+    assert isinstance(EXCEPTIONS[-115](), AuthFailedError)
 
     try:
         EXCEPTIONS[666]()

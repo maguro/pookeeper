@@ -45,3 +45,7 @@ class Id:
 
     def __hash__(self):
         return hash((self.scheme, self.id))
+
+ANYONE_ID_UNSAFE = Id('world', 'anyone')
+AUTH_IDS = Id('world', 'anyone')
+

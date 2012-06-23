@@ -20,7 +20,7 @@ import socket
 import threading
 
 from toolazydogs.zookeeper import zkpath
-from toolazydogs.zookeeper import EXCEPTIONS, NoNode, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
+from toolazydogs.zookeeper import EXCEPTIONS, NoNodeError, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import _invoke, _read_header, ConnectionDropped, _submit
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
@@ -99,7 +99,7 @@ class Client(object):
 
         writer_started = threading.Event()
 
-        writer_thread = Writer(self, writer_started)
+        writer_thread = WriterThread(self, writer_started)
         writer_thread.start()
 
         writer_started.wait()
@@ -154,7 +154,7 @@ class Client(object):
         try:
             self._call(request, response)
             return response.stat if response.stat.czxid != -1 else None
-        except NoNode:
+        except NoNodeError:
             return None
 
     def get_data(self, path, watch=False):
@@ -297,7 +297,7 @@ class _Transaction(object):
             self.lock.release()
 
 
-class Reader(threading.Thread):
+class ReaderThread(threading.Thread):
     """ The reader thread
 
     The reader thread is quite passive, simply reading
@@ -307,7 +307,7 @@ class Reader(threading.Thread):
     """
 
     def __init__(self, client, s, reader_started, reader_done, read_timeout):
-        super(Reader, self).__init__(target=lambda: self.local_run())
+        super(ReaderThread, self).__init__(target=lambda: self.local_run())
         self.client = client
         self.s = s
         self.reader_started = reader_started
@@ -379,9 +379,9 @@ class Reader(threading.Thread):
                 break
 
 
-class Writer(threading.Thread):
+class WriterThread(threading.Thread):
     def __init__(self, client, writer_started):
-        super(Writer, self).__init__(target=lambda: self.local_run())
+        super(WriterThread, self).__init__(target=lambda: self.local_run())
         self.client = client
         self.writer_started = writer_started
 
@@ -390,10 +390,9 @@ class Writer(threading.Thread):
 
         writer_done = False
         reader_done = threading.Event()
+        self.client._state = CONNECTING
 
         for host, port in self.client.hosts:
-            self.client._state = CONNECTING
-
             s = self.client._allocate_socket()
 
             try:
@@ -440,7 +439,7 @@ class Writer(threading.Thread):
 
                 reader_started = threading.Event()
 
-                reader_thread = Reader(self.client, s, reader_started, reader_done, read_timeout)
+                reader_thread = ReaderThread(self.client, s, reader_started, reader_done, read_timeout)
                 reader_thread.start()
 
                 reader_started.wait()
@@ -477,11 +476,14 @@ class Writer(threading.Thread):
                 s.close()
 
                 if writer_done:
+                    self.client._state = CLOSED
                     break
             except ConnectionDropped as ie:
                 LOGGER.warning('Connection dropped')
                 self.client._events.put(lambda w: w.connectionDropped())
+                self.client._state = CONNECTING
             except Exception as e:
+                self.client._state = CONNECTING
                 LOGGER.exception(e)
 
         self.client._events.put(lambda w: w.connectionClosed())

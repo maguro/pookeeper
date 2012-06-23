@@ -18,6 +18,7 @@ from Queue import Queue, Empty, Full
 from collections import defaultdict
 
 from time import time as _time
+from toolazydogs.zookeeper import packets
 from toolazydogs.zookeeper.packets.data.ACL import ACL
 from toolazydogs.zookeeper.packets.data.Id import Id
 
@@ -135,6 +136,11 @@ class Connected(State):
         super(Connected, self).__init__('CONNECTED', 'Connected')
 
 
+class ConnectedRO(State):
+    def __init__(self):
+        super(ConnectedRO, self).__init__('CONNECTED_RO', 'Connected Read-Only')
+
+
 class AuthFailed(State):
     def __init__(self):
         super(AuthFailed, self).__init__('AUTH_FAILED', 'Authorization Failed')
@@ -146,6 +152,7 @@ class Closed(State):
 
 CONNECTING = Connecting()
 CONNECTED = Connected()
+CONNECTED_RO = ConnectedRO()
 AUTH_FAILED = AuthFailed()
 CLOSED = Closed()
 
@@ -220,12 +227,9 @@ class Perms(object):
     ADMIN = 16
     ALL = 31
 
-ANYONE_ID_UNSAFE = Id('world', 'anyone')
-AUTH_IDS = Id('world', 'anyone')
-
-OPEN_ACL_UNSAFE = [ACL(Perms.ALL, ANYONE_ID_UNSAFE)]
-CREATOR_ALL_ACL = [ACL(Perms.ALL, AUTH_IDS)]
-READ_ACL_UNSAFE = [ACL(Perms.READ, ANYONE_ID_UNSAFE)]
+OPEN_ACL_UNSAFE = [ACL(Perms.ALL, packets.data.Id.ANYONE_ID_UNSAFE)]
+CREATOR_ALL_ACL = [ACL(Perms.ALL, packets.data.Id.AUTH_IDS)]
+READ_ACL_UNSAFE = [ACL(Perms.READ, packets.data.Id.ANYONE_ID_UNSAFE)]
 
 def _invalid_error_code(): raise RuntimeError('Invalid error code')
 
@@ -278,17 +282,17 @@ class MarshallingError(ZookeeperError):
 
 
 @_zookeeper_exception(-6)
-class Unimplemented(ZookeeperError):
+class UnimplementedError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-7)
-class OperationTimeout(ZookeeperError):
+class OperationTimeoutError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-8)
-class BadArguments(ZookeeperError):
+class BadArgumentsError(ZookeeperError):
     pass
 
 
@@ -298,51 +302,51 @@ class APIError(ZookeeperError):
 
 
 @_zookeeper_exception(-101)
-class NoNode(ZookeeperError):
+class NoNodeError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-102)
-class NoAuth(ZookeeperError):
+class NoAuthError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-103)
-class BadVersion(ZookeeperError):
+class BadVersionError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-108)
-class NoChildrenForEphemerals(ZookeeperError):
+class NoChildrenForEphemeralsError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-110)
-class NodeExists(ZookeeperError):
+class NodeExistsError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-111)
-class NotEmpty(ZookeeperError):
+class NotEmptyError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-112)
-class SessionExpired(ZookeeperError):
+class SessionExpiredError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-113)
-class InvalidCallback(ZookeeperError):
+class InvalidCallbackError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-114)
-class InvalidACL(ZookeeperError):
+class InvalidACLError(ZookeeperError):
     pass
 
 
 @_zookeeper_exception(-115)
-class AuthFailed(ZookeeperError):
+class AuthFailedError(ZookeeperError):
     pass
 
