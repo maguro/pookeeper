@@ -117,6 +117,7 @@ def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, 
 
 
     handle = Client(hosts, session_id, session_passwd, session_timeout, auth_data, read_only)
+
     return handle
 
 

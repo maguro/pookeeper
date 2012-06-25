@@ -16,10 +16,12 @@
 """
 from Queue import Queue, Empty
 import logging
+import random
 import socket
 import threading
+import time
 
-from toolazydogs.zookeeper import zkpath
+from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss
 from toolazydogs.zookeeper import EXCEPTIONS, NoNodeError, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import _invoke, _read_header, ConnectionDropped, _submit
@@ -87,6 +89,9 @@ class Client(object):
         def event_worker():
             while True:
                 notification = self._events.get()
+
+                if notification == self: break
+
                 for watcher in self.watchers:
                     try:
                         notification(watcher)
@@ -100,14 +105,14 @@ class Client(object):
         writer_started = threading.Event()
 
         writer_thread = WriterThread(self, writer_started)
+        writer_thread.setDaemon(True)
         writer_thread.start()
 
         writer_started.wait()
 
     def close(self):
-        self._state_lock.acquire()
-        try:
-            self._check_state([AUTH_FAILED, CLOSED])
+        with self._state_lock:
+            self._check_state()
 
             call_exception = None
             event = threading.Event()
@@ -119,8 +124,6 @@ class Client(object):
                 LOGGER.debug('Closing handler called')
 
             self._queue.put((CloseRequest(), CloseResponse(), close))
-        finally:
-            self._state_lock.release()
 
         event.wait()
 
@@ -213,9 +216,8 @@ class Client(object):
         return response.results
 
     def _call(self, request, response):
-        self._state_lock.acquire()
-        try:
-            self._check_state([AUTH_FAILED, CLOSED])
+        with self._state_lock:
+            self._check_state()
 
             call_exception = [None]
             event = threading.Event()
@@ -225,8 +227,6 @@ class Client(object):
                 event.set()
 
             self._queue.put((request, response, callback))
-        finally:
-            self._state_lock.release()
 
         event.wait()
         if call_exception[0]:
@@ -238,10 +238,33 @@ class Client(object):
         return socket.socket()
 
 
-    def _check_state(self, invalid_states):
-        for state in invalid_states:
-            if self._state == state:
-                raise ValueError(state.description)
+    def _check_state(self):
+        if self._state == AUTH_FAILED:
+            raise AuthFailedError()
+        if self._state == CLOSED:
+            raise SessionExpiredError()
+
+    def _close(self, state):
+        """ The party is over.  Time to clean up
+        """
+        assert state in set([CLOSED, AUTH_FAILED])
+        with self._state_lock:
+            self._state = state
+
+            # notify watchers
+            self._events.put(lambda w: w.connectionClosed())
+
+            # drain the pending queue
+            while not self._pending.empty():
+                request, response, callback, xid = self._pending.get()
+                if state == CLOSED:
+                    callback(ConnectionLoss())
+                elif state == AUTH_FAILED:
+                    callback(AuthFailedError())
+
+            # when the event thread encounters the connection on the queue, it
+            # will kill itself
+            self._events.put(self)
 
 
 class _Transaction(object):
@@ -266,8 +289,7 @@ class _Transaction(object):
         self._add(CheckVersionRequest(_prefix_root(self.client.chroot, path), version))
 
     def commit(self):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._check_tx_state()
             self.committed = True
             LOGGER.debug('Committing on %r', self)
@@ -279,22 +301,17 @@ class _Transaction(object):
                 results.append(e)
 
             return results
-        finally:
-            self.lock.release()
 
     def _check_tx_state(self):
         if self.committed:
             raise ValueError('Transaction already committed')
 
     def _add(self, request, post_processor=None):
-        self.lock.acquire()
-        try:
+        with self.lock:
             self._check_tx_state()
             LOGGER.debug('Added %r to %r', request, self)
             self.operations.append(request)
             self.post_processors.append(post_processor if post_processor else lambda x: x)
-        finally:
-            self.lock.release()
 
 
 class ReaderThread(threading.Thread):
@@ -307,14 +324,14 @@ class ReaderThread(threading.Thread):
     """
 
     def __init__(self, client, s, reader_started, reader_done, read_timeout):
-        super(ReaderThread, self).__init__(target=lambda: self.local_run())
+        super(ReaderThread, self).__init__()
         self.client = client
         self.s = s
         self.reader_started = reader_started
         self.reader_done = reader_done
         self.read_timeout = read_timeout
 
-    def local_run(self):
+    def run(self):
         self.reader_started.set()
 
         while True:
@@ -381,19 +398,19 @@ class ReaderThread(threading.Thread):
 
 class WriterThread(threading.Thread):
     def __init__(self, client, writer_started):
-        super(WriterThread, self).__init__(target=lambda: self.local_run())
+        super(WriterThread, self).__init__()
         self.client = client
         self.writer_started = writer_started
 
-    def local_run(self):
+    def run(self):
         LOGGER.debug('Starting writer')
 
         writer_done = False
-        reader_done = threading.Event()
-        self.client._state = CONNECTING
 
         for host, port in self.client.hosts:
             s = self.client._allocate_socket()
+
+            self.client._state = CONNECTING
 
             try:
                 LOGGER.info('Connecting to %s:%s', host, port)
@@ -403,8 +420,6 @@ class WriterThread(threading.Thread):
                 s.setblocking(0)
 
                 LOGGER.debug('Connected')
-
-                self.client._state = CONNECTED
 
                 connect_request = ConnectRequest(0,
                                                  self.client.last_zxid,
@@ -433,11 +448,15 @@ class WriterThread(threading.Thread):
                     LOGGER.debug('    read timeout: %s', read_timeout)
                     self.client._events.put(lambda w: w.sessionConnected(self.client.session_id, self.client.session_passwd, self.client.read_only))
 
+                self.client._state = CONNECTED
+                connect_failures = 0
+
                 for scheme, auth in self.client.auth_data:
                     ap = AuthPacket(0, scheme, auth)
                     zxid = _invoke(s, connect_timeout, ap, xid=-4)
 
                 reader_started = threading.Event()
+                reader_done = threading.Event()
 
                 reader_thread = ReaderThread(self.client, s, reader_started, reader_done, read_timeout)
                 reader_thread.start()
@@ -446,6 +465,7 @@ class WriterThread(threading.Thread):
                 self.writer_started.set()
 
                 xid = 0
+                writer_done = False
                 while not writer_done:
                     try:
                         request, response, callback = self.client._queue.peek(True, read_timeout / 2000.0)
@@ -473,20 +493,19 @@ class WriterThread(threading.Thread):
                 reader_done.wait()
                 LOGGER.info('Closing connection to %s:%s', host, port)
 
-                s.close()
-
                 if writer_done:
-                    self.client._state = CLOSED
                     break
             except ConnectionDropped as ie:
                 LOGGER.warning('Connection dropped')
                 self.client._events.put(lambda w: w.connectionDropped())
-                self.client._state = CONNECTING
+                time.sleep(random.random())
             except Exception as e:
-                self.client._state = CONNECTING
-                LOGGER.exception(e)
+                LOGGER.warning(e)
+                time.sleep(random.random())
+            finally:
+                s.close()
 
-        self.client._events.put(lambda w: w.connectionClosed())
+        self.client._close(CLOSED)
 
 
 def _prefix_root(root, path):
