@@ -386,6 +386,7 @@ class ReaderThread(threading.Thread):
 
                     if isinstance(response, CloseResponse):
                         LOGGER.debug('Read close response')
+                        self.s.close()
                         self.reader_done.set()
                         break
             except ConnectionDropped:
@@ -394,6 +395,8 @@ class ReaderThread(threading.Thread):
             except Exception as e:
                 LOGGER.exception(e)
                 break
+
+        LOGGER.debug('Reader stopped')
 
 
 class WriterThread(threading.Thread):
@@ -465,7 +468,6 @@ class WriterThread(threading.Thread):
                 self.writer_started.set()
 
                 xid = 0
-                writer_done = False
                 while not writer_done:
                     try:
                         request, response, callback = self.client._queue.peek(True, read_timeout / 2000.0)
@@ -503,9 +505,14 @@ class WriterThread(threading.Thread):
                 LOGGER.warning(e)
                 time.sleep(random.random())
             finally:
-                s.close()
+                if not writer_done:
+                    # The read thread will close the socket since there
+                    # could be a number of pending requests whose response
+                    # still needs to be read from the socket.
+                    s.close()
 
         self.client._close(CLOSED)
+        LOGGER.debug('Writer stopped')
 
 
 def _prefix_root(root, path):
