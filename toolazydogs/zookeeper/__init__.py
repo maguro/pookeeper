@@ -14,7 +14,7 @@
  specific language governing permissions and limitations
  under the License.
 """
-from Queue import Queue, Empty, Full
+from Queue import Queue, Empty
 from collections import defaultdict
 
 from time import time as _time
@@ -62,41 +62,6 @@ class PeekableQueue(Queue):
         finally:
             self.not_empty.release()
 
-    def put_front(self, item, block=True, timeout=None):
-        """Put an item into the queue.
-
-        If optional args 'block' is true and 'timeout' is None (the default),
-        block if necessary until a free slot is available. If 'timeout' is
-        a positive number, it blocks at most 'timeout' seconds and raises
-        the Full exception if no free slot was available within that time.
-        Otherwise ('block' is false), put an item on the queue if a free slot
-        is immediately available, else raise the Full exception ('timeout'
-        is ignored in that case).
-        """
-        self.not_full.acquire()
-        try:
-            if self.maxsize > 0:
-                if not block:
-                    if self._qsize() == self.maxsize:
-                        raise Full
-                elif timeout is None:
-                    while self._qsize() == self.maxsize:
-                        self.not_full.wait()
-                elif timeout < 0:
-                    raise ValueError("'timeout' must be a positive number")
-                else:
-                    endtime = _time() + timeout
-                    while self._qsize() == self.maxsize:
-                        remaining = endtime - _time()
-                        if remaining <= 0.0:
-                            raise Full
-                        self.not_full.wait(remaining)
-            self.queue.appendLeft(item)
-            self.unfinished_tasks += 1
-            self.not_empty.notify()
-        finally:
-            self.not_full.release()
-
 
 class Watcher(object):
     def sessionConnected(self, session_id, session_password, read_only):
@@ -115,39 +80,6 @@ class Watcher(object):
         pass
 
     def node_deletedself(self, path):
-        pass
-
-    def data_changed(self, path):
-        pass
-
-    def children_changed(self, path):
-        pass
-
-
-class WatcherWrapper(object):
-    def __init__(self, delegate, path):
-        assert delegate
-
-        self.delegate = delegate
-        self.path = path
-
-    def sessionConnected(self, session_id, session_password, read_only):
-        self.delegate.sessionConnected(session_id, session_password, read_only)
-
-    def sessionExpired(self, session_id):
-        self.delegate.sessionExpired(session_id)
-
-    def connectionDropped(self):
-        self.delegate.connectionDropped()
-
-    def connectionClosed(self):
-        self.delegate.connectionClosed()
-
-    def node_created(self, path):
-        if self.path == path:
-            self.delegate.node_created(path)
-
-    def node_deleted(self, path):
         pass
 
     def data_changed(self, path):
