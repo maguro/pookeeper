@@ -111,12 +111,57 @@ class Watcher(object):
     def connectionClosed(self):
         pass
 
+    def node_created(self, path):
+        pass
 
-def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False):
+    def node_deletedself(self, path):
+        pass
+
+    def data_changed(self, path):
+        pass
+
+    def children_changed(self, path):
+        pass
+
+
+class WatcherWrapper(object):
+    def __init__(self, delegate, path):
+        assert delegate
+
+        self.delegate = delegate
+        self.path = path
+
+    def sessionConnected(self, session_id, session_password, read_only):
+        self.delegate.sessionConnected(session_id, session_password, read_only)
+
+    def sessionExpired(self, session_id):
+        self.delegate.sessionExpired(session_id)
+
+    def connectionDropped(self):
+        self.delegate.connectionDropped()
+
+    def connectionClosed(self):
+        self.delegate.connectionClosed()
+
+    def node_created(self, path):
+        if self.path == path:
+            self.delegate.node_created(path)
+
+    def node_deleted(self, path):
+        pass
+
+    def data_changed(self, path):
+        pass
+
+    def children_changed(self, path):
+        pass
+
+
+def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
     from toolazydogs.zookeeper.zookeeper import Client
 
 
-    handle = Client(hosts, session_id, session_passwd, session_timeout, auth_data, read_only)
+    handle = Client(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
 
     return handle
 

@@ -22,7 +22,7 @@ from nose.plugins.attrib import attr
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import CREATE_CODES, Persistent, Ephemeral, PersistentSequential, EXCEPTIONS, APIError, InvalidACLError, AuthFailedError, InvalidCallbackError, SessionExpiredError, NotEmptyError, NodeExistsError, NoChildrenForEphemeralsError, BadVersionError, NoAuthError, NoNodeError, BadArgumentsError, OperationTimeoutError, UnimplementedError, MarshallingError, ConnectionLoss, DataInconsistency, RuntimeInconsistency, SystemZookeeperError, EphemeralSequential, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE
 from toolazydogs.zookeeper.hosts import collect_hosts
-from toolazydogs.zookeeper.zookeeper import _prefix_root
+from toolazydogs.zookeeper.zookeeper import _prefix_root, _hex
 
 
 def test_CREATE_CODES():
@@ -142,7 +142,7 @@ class Mine(Watcher):
         pass
 
     def sessionConnected(self, session_id, session_password, read_only):
-        print 'CONNECTED'
+        print 'CONNECTED %r %r %r' % (session_id, _hex(session_password), read_only)
 
     def sessionExpired(self, session_id):
         print 'EXPIRED'
@@ -150,13 +150,15 @@ class Mine(Watcher):
     def connectionDropped(self):
         print 'DROPPED'
 
+    def connectionClosed(self):
+        print 'CLOSED'
+
 
 @attr('server')
 @attr('slow')
 def test_ping():
     hosts = HOSTS + CHROOT
-    z = zookeeper.allocate(hosts, session_timeout=1.0)
-    z.watchers.add(Mine())
+    z = zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine())
 
     children, stat = z.get_children('/')
 
@@ -205,7 +207,7 @@ def test_zookeeper():
 def test_transaction():
     hosts = HOSTS + CHROOT
 
-    z = zookeeper.allocate(hosts)
+    z = zookeeper.allocate(hosts, watcher=Mine())
 
     # this should fail because /bar does not exist
     stat = z.exists('/foo')

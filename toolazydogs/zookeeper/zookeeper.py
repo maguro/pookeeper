@@ -15,13 +15,14 @@
  under the License.
 """
 from Queue import Queue, Empty
+from collections import defaultdict
 import logging
 import random
 import socket
 import threading
 import time
 
-from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss
+from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher
 from toolazydogs.zookeeper import EXCEPTIONS, NoNodeError, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import _invoke, _read_header, ConnectionDropped, _submit
@@ -57,7 +58,7 @@ from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
 LOGGER = logging.getLogger('toolazydogs.zookeeper')
 
 class Client(object):
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False):
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
         from toolazydogs.zookeeper import PeekableQueue
 
 
@@ -80,8 +81,11 @@ class Client(object):
         self._queue = PeekableQueue()
         self._pending = Queue()
 
-        self.watchers = set()
         self._events = Queue()
+        self.child_watchers = defaultdict(set)
+        self.data_watchers = defaultdict(set)
+        self.exists_watchers = defaultdict(set)
+        self.default_watcher = watcher or Watcher()
 
         self._state = CONNECTING
         self._state_lock = threading.RLock()
@@ -92,11 +96,10 @@ class Client(object):
 
                 if notification == self: break
 
-                for watcher in self.watchers:
-                    try:
-                        notification(watcher)
-                    except Exception as e:
-                        LOGGER.exception(e)
+                try:
+                    notification()
+                except Exception as e:
+                    LOGGER.exception(e)
 
         self._event_thread = threading.Thread(target=event_worker)
         self._event_thread.daemon = True
@@ -150,21 +153,38 @@ class Client(object):
 
         self._call(request, None)
 
-    def exists(self, path, watch=False):
+    def exists(self, path, watch=False, watcher=None):
         request = ExistsRequest(_prefix_root(self.chroot, path), watch)
         response = ExistsResponse(None)
 
         try:
-            self._call(request, response)
+            def register_watcher(exception):
+                if not exception:
+                    with self._state_lock:
+                        self.data_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+                elif exception == NoNodeError:
+                    with self._state_lock:
+                        self.exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+
+            self._call(request,
+                       response,
+                       lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
+
             return response.stat if response.stat.czxid != -1 else None
         except NoNodeError:
             return None
 
-    def get_data(self, path, watch=False):
+    def get_data(self, path, watch=False, watcher=None):
         request = GetDataRequest(_prefix_root(self.chroot, path), watch)
         response = GetDataResponse(None, None)
 
-        self._call(request, response)
+        def register_watcher(exception):
+            if not exception:
+                self.data_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+
+        self._call(request,
+                   response,
+                   lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
 
         return response.data, response.stat
 
@@ -198,10 +218,19 @@ class Client(object):
 
         self._call(request, response)
 
-    def get_children(self, path, watch=False):
+    def get_children(self, path, watch=False, watcher=None):
         request = GetChildren2Request(_prefix_root(self.chroot, path), watch)
         response = GetChildren2Response(None, None)
-        self._call(request, response)
+
+        def register_watcher(exception):
+            if not exception:
+                with self._state_lock:
+                    self.child_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+
+        self._call(request,
+                   response,
+                   lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
+
         return response.children, response.stat
 
     def allocate_transaction(self):
@@ -215,7 +244,7 @@ class Client(object):
 
         return response.results
 
-    def _call(self, request, response):
+    def _call(self, request, response, register_watcher=None):
         with self._state_lock:
             self._check_state()
 
@@ -223,7 +252,11 @@ class Client(object):
             event = threading.Event()
 
             def callback(exception):
-                call_exception[0] = exception
+                if exception:
+                    call_exception[0] = exception
+                if register_watcher:
+                    register_watcher(exception)
+
                 event.set()
 
             self._queue.put((request, response, callback))
@@ -244,6 +277,18 @@ class Client(object):
         if self._state == CLOSED:
             raise SessionExpiredError()
 
+    def _all_watchers(self):
+        with self._state_lock:
+            watchers = set()
+            watchers.add(self.default_watcher)
+            for v in self.child_watchers.itervalues():
+                watchers.add(v)
+            for v in self.data_watchers.itervalues():
+                watchers.add(v)
+            for v in self.exists_watchers.itervalues():
+                watchers.add(v)
+            return watchers
+
     def _close(self, state):
         """ The party is over.  Time to clean up
         """
@@ -252,7 +297,7 @@ class Client(object):
             self._state = state
 
             # notify watchers
-            self._events.put(lambda w: w.connectionClosed())
+            self._events.put(lambda: map(lambda w: w.connectionClosed(), self._all_watchers()))
 
             # drain the pending queue
             while not self._pending.empty():
@@ -348,17 +393,31 @@ class ReaderThread(threading.Thread):
                     watcher_event = WatcherEvent(None, None, None)
                     watcher_event.deserialize(buffer, 'event')
 
-                    if watcher_event.type == 1:
-                        event = lambda watcher: watcher.node_created(watcher_event.path)
-                    elif watcher_event == 2:
-                        event = lambda watcher: watcher.node_deleted(watcher_event.path)
-                    elif watcher_event == 3:
-                        event = lambda watcher: watcher.data_changed(watcher_event.path)
-                    elif watcher_event == 4:
-                        event = lambda watcher: watcher.children_changed(watcher_event.path)
-                    else:
-                        LOGGER.warn('Received unknown event %r', watcher_event.type)
-                        continue
+                    watchers = set()
+                    with self.client._state_lock:
+                        if watcher_event.type == 1:
+                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
+
+                            event = lambda: map(lambda w: w.node_created(watcher_event.path), watchers)
+                        elif watcher_event == 2:
+                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client.child_watchers.pop(watcher_event.path, set())
+
+                            event = lambda: map(lambda w: w.node_deleted(watcher_event.path), watchers)
+                        elif watcher_event == 3:
+                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
+
+                            event = lambda: map(lambda w: w.data_changed(watcher_event.path), watchers)
+                        elif watcher_event == 4:
+                            watchers |= self.client.child_watchers.pop(watcher_event.path, set())
+
+                            event = lambda: map(lambda w: w.children_changed(watcher_event.path), watchers)
+                        else:
+                            LOGGER.warn('Received unknown event %r', watcher_event.type)
+                            continue
 
                     self.client._events.put(event)
                 else:
@@ -436,7 +495,7 @@ class WriterThread(threading.Thread):
 
                 if connection_response.timeOut < 0:
                     LOGGER.error('Session expired')
-                    self.client._events.put(lambda w: w.sessionExpired(self.client.session_id))
+                    self.client._events.put(lambda: map(lambda w: w.sessionExpired(self.client.session_id), self.client._all_watchers()))
                     raise RuntimeError('Session expired')
                 else:
                     if zxid: self.client.last_zxid = zxid
@@ -449,7 +508,7 @@ class WriterThread(threading.Thread):
                     LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
                     LOGGER.debug('    connect timeout: %s', connect_timeout)
                     LOGGER.debug('    read timeout: %s', read_timeout)
-                    self.client._events.put(lambda w: w.sessionConnected(self.client.session_id, self.client.session_passwd, self.client.read_only))
+                    self.client._events.put(lambda: map(lambda w: w.sessionConnected(self.client.session_id, self.client.session_passwd, self.client.read_only), self.client._all_watchers()))
 
                 self.client._state = CONNECTED
                 connect_failures = 0
@@ -499,7 +558,7 @@ class WriterThread(threading.Thread):
                     break
             except ConnectionDropped as ie:
                 LOGGER.warning('Connection dropped')
-                self.client._events.put(lambda w: w.connectionDropped())
+                self.client._events.put(lambda: map(lambda w: w.connectionDropped(), self.client._all_watchers()))
                 time.sleep(random.random())
             except Exception as e:
                 LOGGER.warning(e)
