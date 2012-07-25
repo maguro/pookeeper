@@ -105,13 +105,15 @@ class Client(object):
         self._event_thread.daemon = True
         self._event_thread.start()
 
-        writer_started = threading.Event()
+        self.writer_started = threading.Event()
 
-        writer_thread = WriterThread(self, writer_started)
+        writer_thread = WriterThread(self, self.writer_started)
         writer_thread.setDaemon(True)
         writer_thread.start()
 
-        writer_started.wait()
+        self.writer_started.wait()
+
+        self._check_state()
 
     def close(self):
         with self._state_lock:
@@ -295,6 +297,10 @@ class Client(object):
         assert state in set([CLOSED, AUTH_FAILED])
         with self._state_lock:
             self._state = state
+
+            # People may be waiting for the writer to start even though it
+            # has already aborted the mission.
+            self.writer_started.set()
 
             # notify watchers
             self._events.put(lambda: map(lambda w: w.connectionClosed(), self._all_watchers()))
@@ -513,9 +519,14 @@ class WriterThread(threading.Thread):
                 self.client._state = CONNECTED
                 connect_failures = 0
 
-                for scheme, auth in self.client.auth_data:
-                    ap = AuthPacket(0, scheme, auth)
-                    zxid = _invoke(s, connect_timeout, ap, xid=-4)
+                try:
+                    for scheme, auth in self.client.auth_data:
+                        ap = AuthPacket(0, scheme, auth)
+                        zxid = _invoke(s, connect_timeout, ap, xid=-4)
+                except AuthFailedError:
+                    self.client._close(AUTH_FAILED)
+                    LOGGER.debug('Writer stopped')
+                    return
 
                 reader_started = threading.Event()
                 reader_done = threading.Event()

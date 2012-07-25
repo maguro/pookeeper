@@ -239,6 +239,16 @@ def test_transaction():
     z.close()
 
 
+@attr('server')
+def test_auth():
+    hosts = HOSTS + CHROOT
+    try:
+        z = zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine(), auth_data=set([('a', 'b')]))
+        assert False, 'Allocation should have thrown an AuthFailedError'
+    except AuthFailedError:
+        pass
+
+
 def setup_module():
     logger = logging.getLogger('toolazydogs.zookeeper')
 

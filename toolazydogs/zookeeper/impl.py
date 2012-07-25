@@ -17,6 +17,7 @@
 import logging
 import select
 import struct
+from toolazydogs.zookeeper import EXCEPTIONS
 
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.ReplyHeader import ReplyHeader
@@ -57,7 +58,9 @@ def _invoke(socket, timeout, request, response=None, xid=None):
         if header.zxid > 0:
             zxid = header.zxid
         if header.err:
-            pass
+            callback_exception = EXCEPTIONS[header.err]()
+            LOGGER.debug('Received error %r', callback_exception)
+            raise callback_exception
 
     if response:
         response.deserialize(ia, 'NA')
