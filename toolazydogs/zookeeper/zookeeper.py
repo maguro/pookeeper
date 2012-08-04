@@ -523,6 +523,7 @@ class WriterThread(threading.Thread):
                     for scheme, auth in self.client.auth_data:
                         ap = AuthPacket(0, scheme, auth)
                         zxid = _invoke(s, connect_timeout, ap, xid=-4)
+                        if zxid: self.client.last_zxid = zxid
                 except AuthFailedError:
                     self.client._close(AUTH_FAILED)
                     LOGGER.debug('Writer stopped')
@@ -543,7 +544,7 @@ class WriterThread(threading.Thread):
                         request, response, callback = self.client._queue.peek(True, read_timeout / 2000.0)
                         LOGGER.debug('Sending %r', request)
 
-                        xid = xid + 1
+                        xid += 1
                         LOGGER.debug('xid: %r', xid)
 
                         _submit(s, request, connect_timeout, xid)
@@ -567,7 +568,7 @@ class WriterThread(threading.Thread):
 
                 if writer_done:
                     break
-            except ConnectionDropped as ie:
+            except ConnectionDropped:
                 LOGGER.warning('Connection dropped')
                 self.client._events.put(lambda: map(lambda w: w.connectionDropped(), self.client._all_watchers()))
                 time.sleep(random.random())
