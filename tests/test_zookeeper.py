@@ -87,15 +87,15 @@ def test_hosts():
     assert hosts.next() == ('a', 1)
 
     hosts, root = collect_hosts('a:12913')
-    assert root == None
+    assert root is None
     assert hosts.next() == ('a', 12913)
 
     hosts, root = collect_hosts('a')
-    assert root == None
+    assert root is None
     assert hosts.next() == ('a', 2181)
 
     hosts, root = collect_hosts('a/')
-    assert root == None
+    assert root is None
     assert hosts.next() == ('a', 2181)
 
     hosts, root = collect_hosts('a/abc')
@@ -117,7 +117,7 @@ def test_hosts():
     for host_port in hosts:
         assert previous_host_port != host_port
         previous_host_port = host_port
-        count = count + 1
+        count += 1
         if count > 16: break
     assert count == 17
 
@@ -160,11 +160,11 @@ def test_ping():
     hosts = HOSTS + CHROOT
     z = zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine())
 
-    children, stat = z.get_children('/')
+    z.get_children('/')
 
     time.sleep(10)
 
-    children, stat = z.get_children('/')
+    z.get_children('/')
 
     z.close()
 
@@ -175,8 +175,8 @@ def test_zookeeper():
 
     z = zookeeper.allocate(hosts)
 
-    children, stat = z.get_children('/')
-    children, stat = z.get_children('/')
+    z.get_children('/')
+    z.get_children('/')
 
     stat = z.exists('/pookie')
     if stat: z.delete('/pookie', stat.version)
@@ -184,7 +184,7 @@ def test_zookeeper():
     z.create('/pookie', CREATOR_ALL_ACL, Persistent())
 
     stat = z.exists('/pookie')
-    stat = z.set_data('/pookie', bytearray([0] * 16), stat.version)
+    z.set_data('/pookie', bytearray([0] * 16), stat.version)
 
     data, stat = z.get_data('/pookie')
     assert data == bytearray([0] * 16)
@@ -219,7 +219,7 @@ def test_transaction():
     transaction.check('/foo', stat.version)
     transaction.check('/bar', stat.version)
     transaction.delete('/foo', stat.version)
-    results = transaction.commit()
+    transaction.commit()
 
     assert not z.exists('/acabrera')
     assert z.exists('/foo')
@@ -229,7 +229,7 @@ def test_transaction():
     transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
     transaction.check('/foo', stat.version)
     transaction.delete('/foo', stat.version)
-    results = transaction.commit()
+    transaction.commit()
 
     stat = z.exists('/acabrera')
     assert stat
@@ -243,7 +243,7 @@ def test_transaction():
 def test_auth():
     hosts = HOSTS + CHROOT
     try:
-        z = zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine(), auth_data=set([('a', 'b')]))
+        zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine(), auth_data=set([('a', 'b')]))
         assert False, 'Allocation should have thrown an AuthFailedError'
     except AuthFailedError:
         pass
