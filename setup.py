@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
  Copyright 2012 the original author or authors
 
@@ -34,6 +36,9 @@ setup(
     zip_safe = False,
     platforms = 'any',
     test_suite = 'nose.collector',
+    install_requires = [
+        'nose>=1.0.0',
+    ],
     classifiers = [
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache Software License',
