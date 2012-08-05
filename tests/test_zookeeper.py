@@ -14,15 +14,9 @@
  specific language governing permissions and limitations
  under the License.
 """
-import logging
-import time
-
-from nose.plugins.attrib import attr
-
-from toolazydogs import zookeeper
-from toolazydogs.zookeeper import CREATE_CODES, Persistent, Ephemeral, PersistentSequential, EXCEPTIONS, APIError, InvalidACLError, AuthFailedError, InvalidCallbackError, SessionExpiredError, NotEmptyError, NodeExistsError, NoChildrenForEphemeralsError, BadVersionError, NoAuthError, NoNodeError, BadArgumentsError, OperationTimeoutError, UnimplementedError, MarshallingError, ConnectionLoss, DataInconsistency, RuntimeInconsistency, SystemZookeeperError, EphemeralSequential, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE
+from toolazydogs.zookeeper import CREATE_CODES, Persistent, Ephemeral, PersistentSequential, EphemeralSequential, EXCEPTIONS, SystemZookeeperError, RuntimeInconsistency, DataInconsistency, ConnectionLoss, MarshallingError, UnimplementedError, OperationTimeoutError, BadArgumentsError, APIError, NoNodeError, NoAuthError, BadVersionError, NoChildrenForEphemeralsError, NodeExistsError, NotEmptyError, SessionExpiredError, InvalidCallbackError, InvalidACLError, AuthFailedError
 from toolazydogs.zookeeper.hosts import collect_hosts
-from toolazydogs.zookeeper.zookeeper import _prefix_root, _hex
+from toolazydogs.zookeeper.zookeeper import _prefix_root
 
 
 def test_CREATE_CODES():
@@ -78,8 +72,6 @@ def test_EXCEPTIONS():
     except Exception:
         pass
 
-CHROOT = '/acabrera'
-HOSTS = 'localhost'
 
 def test_hosts():
     hosts, root = collect_hosts('a:1/abc')
@@ -135,125 +127,3 @@ def test_prefix_root():
     ]:
         prefixed_root = _prefix_root(root, path)
         yield check_equal, prefixed_root, full_path
-
-
-class Mine(Watcher):
-    def __init__(self):
-        pass
-
-    def sessionConnected(self, session_id, session_password, read_only):
-        print 'CONNECTED %r %r %r' % (session_id, _hex(session_password), read_only)
-
-    def sessionExpired(self, session_id):
-        print 'EXPIRED'
-
-    def connectionDropped(self):
-        print 'DROPPED'
-
-    def connectionClosed(self):
-        print 'CLOSED'
-
-
-@attr('server')
-@attr('slow')
-def test_ping():
-    hosts = HOSTS + CHROOT
-    z = zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine())
-
-    z.get_children('/')
-
-    time.sleep(10)
-
-    z.get_children('/')
-
-    z.close()
-
-
-@attr('server')
-def test_zookeeper():
-    hosts = HOSTS + CHROOT
-
-    z = zookeeper.allocate(hosts)
-
-    z.get_children('/')
-    z.get_children('/')
-
-    stat = z.exists('/pookie')
-    if stat: z.delete('/pookie', stat.version)
-
-    z.create('/pookie', CREATOR_ALL_ACL, Persistent())
-
-    stat = z.exists('/pookie')
-    z.set_data('/pookie', bytearray([0] * 16), stat.version)
-
-    data, stat = z.get_data('/pookie')
-    assert data == bytearray([0] * 16)
-
-    z.set_acls('/pookie', CREATOR_ALL_ACL + READ_ACL_UNSAFE, stat.aversion)
-    acls, stat = z.get_acls('/pookie')
-    assert len(acls) == 2
-    for acl in acls:
-        assert acl in set(CREATOR_ALL_ACL + READ_ACL_UNSAFE)
-
-    z.sync('/pookie')
-    z.delete('/pookie', stat.version)
-
-    assert not z.exists('/pookie')
-
-    z.close()
-
-
-@attr('server')
-def test_transaction():
-    hosts = HOSTS + CHROOT
-
-    z = zookeeper.allocate(hosts, watcher=Mine())
-
-    # this should fail because /bar does not exist
-    stat = z.exists('/foo')
-    if stat: z.delete('/foo', stat.version)
-    z.create('/foo', CREATOR_ALL_ACL, Persistent())
-    stat = z.exists('/foo')
-    transaction = z.allocate_transaction()
-    transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
-    transaction.check('/foo', stat.version)
-    transaction.check('/bar', stat.version)
-    transaction.delete('/foo', stat.version)
-    transaction.commit()
-
-    assert not z.exists('/acabrera')
-    assert z.exists('/foo')
-
-    # this should succeed
-    transaction = z.allocate_transaction()
-    transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
-    transaction.check('/foo', stat.version)
-    transaction.delete('/foo', stat.version)
-    transaction.commit()
-
-    stat = z.exists('/acabrera')
-    assert stat
-    z.delete('/acabrera', stat.version)
-    assert not z.exists('/foo')
-
-    z.close()
-
-
-@attr('server')
-def test_auth():
-    hosts = HOSTS + CHROOT
-    try:
-        zookeeper.allocate(hosts, session_timeout=1.0, watcher=Mine(), auth_data=set([('a', 'b')]))
-        assert False, 'Allocation should have thrown an AuthFailedError'
-    except AuthFailedError:
-        pass
-
-
-def setup_module():
-    logger = logging.getLogger('toolazydogs.zookeeper')
-
-    console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
-    console.setFormatter(logging.Formatter('%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'))
-
-    logger.addHandler(console)

@@ -14,24 +14,19 @@
  specific language governing permissions and limitations
  under the License.
 """
-from Queue import Queue, Empty
+from Queue import Queue
 from collections import defaultdict
 import logging
-import random
 import socket
 import threading
-import time
 
 from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher
-from toolazydogs.zookeeper import EXCEPTIONS, NoNodeError, CONNECTING, CLOSED, AUTH_FAILED, CONNECTED
+from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.zookeeper.hosts import collect_hosts
-from toolazydogs.zookeeper.impl import _invoke, _read_header, ConnectionDropped, _submit
-from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
+from toolazydogs.zookeeper.impl import WriterThread
 from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
 from toolazydogs.zookeeper.packets.proto.CloseResponse import CloseResponse
-from toolazydogs.zookeeper.packets.proto.ConnectResponse import ConnectResponse
-from toolazydogs.zookeeper.packets.proto.ConnectRequest import ConnectRequest
 from toolazydogs.zookeeper.packets.proto.CreateRequest import CreateRequest
 from toolazydogs.zookeeper.packets.proto.CreateResponse import CreateResponse
 from toolazydogs.zookeeper.packets.proto.DeleteRequest import DeleteRequest
@@ -43,7 +38,6 @@ from toolazydogs.zookeeper.packets.proto.GetChildren2Request import GetChildren2
 from toolazydogs.zookeeper.packets.proto.GetChildren2Response import GetChildren2Response
 from toolazydogs.zookeeper.packets.proto.GetDataRequest import GetDataRequest
 from toolazydogs.zookeeper.packets.proto.GetDataResponse import GetDataResponse
-from toolazydogs.zookeeper.packets.proto.PingRequest import PingRequest
 from toolazydogs.zookeeper.packets.proto.SetACLRequest import SetACLRequest
 from toolazydogs.zookeeper.packets.proto.SetACLResponse import SetACLResponse
 from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
@@ -52,7 +46,6 @@ from toolazydogs.zookeeper.packets.proto.SyncRequest import SyncRequest
 from toolazydogs.zookeeper.packets.proto.SyncResponse import SyncResponse
 from toolazydogs.zookeeper.packets.proto.TransactionRequest import TransactionRequest
 from toolazydogs.zookeeper.packets.proto.TransactionResponse import TransactionResponse
-from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
 LOGGER = logging.getLogger('toolazydogs.zookeeper')
@@ -365,227 +358,6 @@ class _Transaction(object):
             self.post_processors.append(post_processor if post_processor else lambda x: x)
 
 
-class ReaderThread(threading.Thread):
-    """ The reader thread
-
-    The reader thread is quite passive, simply reading
-    "packets' off the socket and dispatching them.  It
-    assumes that the writer thread will perform all the
-    cleanup and state orchestration.
-    """
-
-    def __init__(self, client, s, reader_started, reader_done, read_timeout):
-        super(ReaderThread, self).__init__()
-        self.client = client
-        self.s = s
-        self.reader_started = reader_started
-        self.reader_done = reader_done
-        self.read_timeout = read_timeout
-
-    def run(self):
-        self.reader_started.set()
-
-        while True:
-            try:
-                header, buffer = _read_header(self.s, self.read_timeout)
-                if header.xid == -2:
-                    LOGGER.debug('Received PING')
-                    continue
-                elif header.xid == -4:
-                    LOGGER.debug('Received AUTH')
-                    continue
-                elif header.xid == -1:
-                    LOGGER.debug('Received EVENT')
-                    watcher_event = WatcherEvent(None, None, None)
-                    watcher_event.deserialize(buffer, 'event')
-
-                    watchers = set()
-                    with self.client._state_lock:
-                        if watcher_event.type == 1:
-                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
-
-                            event = lambda: map(lambda w: w.node_created(watcher_event.path), watchers)
-                        elif watcher_event == 2:
-                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.child_watchers.pop(watcher_event.path, set())
-
-                            event = lambda: map(lambda w: w.node_deleted(watcher_event.path), watchers)
-                        elif watcher_event == 3:
-                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
-
-                            event = lambda: map(lambda w: w.data_changed(watcher_event.path), watchers)
-                        elif watcher_event == 4:
-                            watchers |= self.client.child_watchers.pop(watcher_event.path, set())
-
-                            event = lambda: map(lambda w: w.children_changed(watcher_event.path), watchers)
-                        else:
-                            LOGGER.warn('Received unknown event %r', watcher_event.type)
-                            continue
-
-                    self.client._events.put(event)
-                else:
-                    LOGGER.debug('Reading for header %r', header)
-
-                    request, response, callback, xid = self.client._pending.get()
-
-                    if header.zxid and header.zxid > 0:
-                        self.client.last_zxid = header.zxid
-                    if header.xid != xid:
-                        raise RuntimeError('xids do not match, expected %r received %r', xid, header.xid)
-
-                    callback_exception = None
-                    if header.err:
-                        callback_exception = EXCEPTIONS[header.err]()
-                        LOGGER.debug('Received error %r', callback_exception)
-                    elif response:
-                        response.deserialize(buffer, 'response')
-                        LOGGER.debug('Received response: %r', response)
-
-                    try:
-                        callback(callback_exception)
-                    except Exception as e:
-                        LOGGER.exception(e)
-
-                    if isinstance(response, CloseResponse):
-                        LOGGER.debug('Read close response')
-                        self.s.close()
-                        self.reader_done.set()
-                        break
-            except ConnectionDropped:
-                LOGGER.debug('Connection dropped for reader')
-                break
-            except Exception as e:
-                LOGGER.exception(e)
-                break
-
-        LOGGER.debug('Reader stopped')
-
-
-class WriterThread(threading.Thread):
-    def __init__(self, client, writer_started):
-        super(WriterThread, self).__init__()
-        self.client = client
-        self.writer_started = writer_started
-
-    def run(self):
-        LOGGER.debug('Starting writer')
-
-        writer_done = False
-
-        for host, port in self.client.hosts:
-            s = self.client._allocate_socket()
-
-            self.client._state = CONNECTING
-
-            try:
-                LOGGER.info('Connecting to %s:%s', host, port)
-                LOGGER.debug('    Using session_id: %r session_passwd: 0x%s', self.client.session_id, _hex(self.client.session_passwd))
-
-                s.connect((host, port))
-                s.setblocking(0)
-
-                LOGGER.debug('Connected')
-
-                connect_request = ConnectRequest(0,
-                                                 self.client.last_zxid,
-                                                 int(self.client.session_timeout * 1000),
-                                                 self.client.session_id or 0,
-                                                 self.client.session_passwd,
-                                                 self.client.read_only)
-                connection_response = ConnectResponse(None, None, None, None)
-
-                zxid = _invoke(s, self.client.session_timeout, connect_request, connection_response)
-
-                if connection_response.timeOut < 0:
-                    LOGGER.error('Session expired')
-                    self.client._events.put(lambda: map(lambda w: w.sessionExpired(self.client.session_id), self.client._all_watchers()))
-                    raise RuntimeError('Session expired')
-                else:
-                    if zxid: self.client.last_zxid = zxid
-                    self.client.session_id = connection_response.sessionId
-                    negotiated_session_timeout = connection_response.timeOut
-                    connect_timeout = negotiated_session_timeout / len(self.client.hosts)
-                    read_timeout = negotiated_session_timeout * 2.0 / 3.0
-                    self.client.session_passwd = connection_response.passwd
-                    LOGGER.debug('Session created, session_id: %r session_passwd: 0x%s', self.client.session_id, _hex(self.client.session_passwd))
-                    LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
-                    LOGGER.debug('    connect timeout: %s', connect_timeout)
-                    LOGGER.debug('    read timeout: %s', read_timeout)
-                    self.client._events.put(lambda: map(lambda w: w.sessionConnected(self.client.session_id, self.client.session_passwd, self.client.read_only), self.client._all_watchers()))
-
-                self.client._state = CONNECTED
-                connect_failures = 0
-
-                try:
-                    for scheme, auth in self.client.auth_data:
-                        ap = AuthPacket(0, scheme, auth)
-                        zxid = _invoke(s, connect_timeout, ap, xid=-4)
-                        if zxid: self.client.last_zxid = zxid
-                except AuthFailedError:
-                    self.client._close(AUTH_FAILED)
-                    LOGGER.debug('Writer stopped')
-                    return
-
-                reader_started = threading.Event()
-                reader_done = threading.Event()
-
-                reader_thread = ReaderThread(self.client, s, reader_started, reader_done, read_timeout)
-                reader_thread.start()
-
-                reader_started.wait()
-                self.writer_started.set()
-
-                xid = 0
-                while not writer_done:
-                    try:
-                        request, response, callback = self.client._queue.peek(True, read_timeout / 2000.0)
-                        LOGGER.debug('Sending %r', request)
-
-                        xid += 1
-                        LOGGER.debug('xid: %r', xid)
-
-                        _submit(s, request, connect_timeout, xid)
-
-                        if isinstance(request, CloseRequest):
-                            LOGGER.debug('Received close request, closing')
-                            writer_done = True
-
-                        self.client._queue.get()
-                        self.client._pending.put((request, response, callback, xid))
-                    except Empty:
-                        LOGGER.debug('Queue timeout.  Sending PING')
-                        _submit(s, PingRequest(), connect_timeout, -2)
-                    except Exception as e:
-                        LOGGER.exception(e)
-                        break
-
-                LOGGER.debug('Waiting for reader to read close response')
-                reader_done.wait()
-                LOGGER.info('Closing connection to %s:%s', host, port)
-
-                if writer_done:
-                    break
-            except ConnectionDropped:
-                LOGGER.warning('Connection dropped')
-                self.client._events.put(lambda: map(lambda w: w.connectionDropped(), self.client._all_watchers()))
-                time.sleep(random.random())
-            except Exception as e:
-                LOGGER.warning(e)
-                time.sleep(random.random())
-            finally:
-                if not writer_done:
-                    # The read thread will close the socket since there
-                    # could be a number of pending requests whose response
-                    # still needs to be read from the socket.
-                    s.close()
-
-        self.client._close(CLOSED)
-        LOGGER.debug('Writer stopped')
-
-
 def _prefix_root(root, path):
     """ Prepend a root to a path. """
     return zkpath.normpath(zkpath.join(_norm_root(root), path.lstrip('/')))
@@ -593,7 +365,3 @@ def _prefix_root(root, path):
 
 def _norm_root(root):
     return zkpath.normpath(zkpath.join('/', root))
-
-
-def _hex(bindata):
-    return bindata.encode('hex')
