@@ -21,7 +21,7 @@ import time
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
-from toolazydogs.zookeeper import  Persistent, AuthFailedError, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE
+from toolazydogs.zookeeper import  Persistent, AuthFailedError, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE, Ephemeral
 from toolazydogs.zookeeper.impl import _hex
 
 
@@ -70,6 +70,45 @@ def test_auth():
 class Test(object):
     def __init__(self):
         self.chroot = ''
+
+    @attr('server')
+    def test_persistent(self):
+        hosts = HOSTS + self.chroot
+
+        z = zookeeper.allocate(hosts)
+
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=random_data)
+
+        z.close()
+
+        z = zookeeper.allocate(hosts)
+
+        data, stat = z.get_data('/pookie')
+        assert data == random_data
+
+        z.delete('/pookie', stat.version)
+
+        assert not z.exists('/pookie')
+
+        z.close()
+
+    @attr('server')
+    def test_ephemeral(self):
+        hosts = HOSTS + self.chroot
+
+        z = zookeeper.allocate(hosts)
+
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=random_data)
+
+        z.close()
+
+        z = zookeeper.allocate(hosts)
+
+        assert not z.exists('/pookie')
+
+        z.close()
 
     @attr('server')
     def test_data(self):
