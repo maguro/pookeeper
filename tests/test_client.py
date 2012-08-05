@@ -122,30 +122,28 @@ class Test(object):
         z = zookeeper.allocate(hosts, watcher=Mine())
 
         # this should fail because /bar does not exist
-        stat = z.exists('/foo')
-        if stat: z.delete('/foo', stat.version)
         z.create('/foo', CREATOR_ALL_ACL, Persistent())
         stat = z.exists('/foo')
+
         transaction = z.allocate_transaction()
-        transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+        transaction.create('/pookie', CREATOR_ALL_ACL, Persistent())
         transaction.check('/foo', stat.version)
         transaction.check('/bar', stat.version)
         transaction.delete('/foo', stat.version)
         transaction.commit()
 
-        assert not z.exists('/acabrera')
+        assert not z.exists('/pookie')
         assert z.exists('/foo')
 
         # this should succeed
         transaction = z.allocate_transaction()
-        transaction.create('/acabrera', CREATOR_ALL_ACL, Persistent())
+        transaction.create('/pookie', CREATOR_ALL_ACL, Persistent())
         transaction.check('/foo', stat.version)
         transaction.delete('/foo', stat.version)
         transaction.commit()
 
-        stat = z.exists('/acabrera')
-        assert stat
-        z.delete('/acabrera', stat.version)
+        stat = z.exists('/pookie')
+        z.delete('/pookie', stat.version)
         assert not z.exists('/foo')
 
         z.close()
