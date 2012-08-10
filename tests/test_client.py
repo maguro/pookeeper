@@ -21,8 +21,7 @@ import time
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
-from toolazydogs.zookeeper import  Persistent, AuthFailedError, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE, Ephemeral, PersistentSequential
-from toolazydogs.zookeeper.impl import _hex
+from toolazydogs.zookeeper import  Persistent, AuthFailedError, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE, Ephemeral, PersistentSequential, EphemeralSequential
 
 
 HOSTS = 'localhost'
@@ -68,8 +67,8 @@ def test_auth():
 
 
 class Test(object):
-    def __init__(self):
-        self.chroot = ''
+    def __init__(self, chroot=None):
+        self.chroot = chroot or ''
 
     @attr('server')
     def test_persistent(self):
@@ -121,10 +120,8 @@ class Test(object):
         random_data = _random_data()
         result = z.create('/root/pookie', CREATOR_ALL_ACL, PersistentSequential(), data=random_data)
         children, _ = z.get_children('/root')
-        count = 0
-        for child in children:
-            assert int(child[len('/root/pookie'):]) == count
-            count += 1
+        assert len(children) == 1
+        assert int(children[0][len('/root/pookie'):]) == 0
 
         z.close()
 
@@ -132,29 +129,57 @@ class Test(object):
 
         children, _ = z.get_children('/root')
         assert len(children) == 1
-        count = 0
-        for child in children:
-            assert int(child[len('/root/pookie'):]) == count
-            count += 1
+        assert int(children[0][len('/root/pookie'):]) == 0
 
         result = z.create('/root/pookie', CREATOR_ALL_ACL, PersistentSequential(), data=random_data)
 
         children, _ = z.get_children('/root')
         assert len(children) == 2
-        count = 0
-        for child in sorted(children):
-            assert int(child[len('/root/pookie'):]) == count
-            count += 1
+        children = sorted(children)
+        assert int(children[0][len('/root/pookie'):]) == 0
+        assert int(children[1][len('/root/pookie'):]) == 1
 
         z.close()
 
         z = zookeeper.allocate(hosts)
-        assert len(children) == 2
         children, _ = z.get_children('/root')
-        count = 0
-        for child in children:
-            assert int(child[len('/root/pookie'):]) == count
-            count += 1
+        assert len(children) == 2
+        children = sorted(children)
+        assert int(children[0][len('/root/pookie'):]) == 0
+        assert int(children[1][len('/root/pookie'):]) == 1
+
+        _delete(z, '/root')
+
+        assert not z.exists('/root')
+
+        z.close()
+
+    @attr('server')
+    def test_ephemeral_sequential(self):
+        hosts = HOSTS + self.chroot
+
+        z = zookeeper.allocate(hosts)
+
+        z.create('/root', CREATOR_ALL_ACL, Persistent())
+
+        random_data = _random_data()
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, EphemeralSequential(), data=random_data)
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, EphemeralSequential(), data=random_data)
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, EphemeralSequential(), data=random_data)
+
+        children, _ = z.get_children('/root')
+        children = sorted(children)
+        assert len(children) == 3
+        assert int(children[0][len('/root/pookie'):]) == 0
+        assert int(children[1][len('/root/pookie'):]) == 1
+        assert int(children[2][len('/root/pookie'):]) == 2
+
+        z.close()
+
+        z = zookeeper.allocate(hosts)
+
+        children, _ = z.get_children('/root')
+        assert len(children) == 0
 
         _delete(z, '/root')
 
@@ -241,8 +266,7 @@ class Test(object):
 
 class TestChroot(Test):
     def __init__(self):
-        Test.__init__(self)
-        self.chroot = '/pookeeper'
+        Test.__init__(self, chroot='/pookeeper')
 
     def setUp(self):
         z = zookeeper.allocate(HOSTS)
