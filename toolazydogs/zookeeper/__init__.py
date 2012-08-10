@@ -14,10 +14,8 @@
  specific language governing permissions and limitations
  under the License.
 """
-from Queue import Queue, Empty
 from collections import defaultdict
 
-from time import time as _time
 from toolazydogs.zookeeper import packets
 from toolazydogs.zookeeper.packets.data.ACL import ACL
 from toolazydogs.zookeeper.packets.data.Id import Id
@@ -25,42 +23,26 @@ from toolazydogs.zookeeper.packets.data.Id import Id
 
 __version__ = '1.0.0-dev'
 
-class PeekableQueue(Queue):
-    def __init__(self, maxsize=0):
-        Queue.__init__(self, maxsize=0)
+def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+    return allocate_34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
 
-    def peek(self, block=True, timeout=None):
-        """Return the first item in the queue but do not remove it from the queue.
 
-        If optional args 'block' is true and 'timeout' is None (the default),
-        block if necessary until an item is available. If 'timeout' is
-        a positive number, it blocks at most 'timeout' seconds and raises
-        the Empty exception if no item was available within that time.
-        Otherwise ('block' is false), return an item if one is immediately
-        available, else raise the Empty exception ('timeout' is ignored
-        in that case).
-        """
-        self.not_empty.acquire()
-        try:
-            if not block:
-                if not self._qsize():
-                    raise Empty
-            elif timeout is None:
-                while not self._qsize():
-                    self.not_empty.wait()
-            elif timeout < 0:
-                raise ValueError("'timeout' must be a positive number")
-            else:
-                endtime = _time() + timeout
-                while not self._qsize():
-                    remaining = endtime - _time()
-                    if remaining <= 0.0:
-                        raise Empty
-                    self.not_empty.wait(remaining)
-            item = self.queue[0]
-            return item
-        finally:
-            self.not_empty.release()
+def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+    from toolazydogs.zookeeper.zookeeper import Client34
+
+
+    handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+
+    return handle
+
+
+def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+    from toolazydogs.zookeeper.zookeeper import Client33
+
+
+    handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+
+    return handle
 
 
 class Watcher(object):
@@ -87,15 +69,6 @@ class Watcher(object):
 
     def children_changed(self, path):
         pass
-
-
-def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
-    from toolazydogs.zookeeper.zookeeper import Client
-
-
-    handle = Client(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
-
-    return handle
 
 
 class State(object):

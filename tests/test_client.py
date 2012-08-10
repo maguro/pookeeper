@@ -21,7 +21,7 @@ import time
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
-from toolazydogs.zookeeper import  Persistent, AuthFailedError, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE, Ephemeral
+from toolazydogs.zookeeper import  Persistent, AuthFailedError, Watcher, CREATOR_ALL_ACL, READ_ACL_UNSAFE, Ephemeral, PersistentSequential
 from toolazydogs.zookeeper.impl import _hex
 
 
@@ -32,16 +32,16 @@ class Mine(Watcher):
         pass
 
     def sessionConnected(self, session_id, session_password, read_only):
-        print 'CONNECTED %r %r %r' % (session_id, _hex(session_password), read_only)
+        pass
 
     def sessionExpired(self, session_id):
-        print 'EXPIRED'
+        pass
 
     def connectionDropped(self):
-        print 'DROPPED'
+        pass
 
     def connectionClosed(self):
-        print 'CLOSED'
+        pass
 
 
 @attr('server')
@@ -111,6 +111,58 @@ class Test(object):
         z.close()
 
     @attr('server')
+    def test_persistent_sequential(self):
+        hosts = HOSTS + self.chroot
+
+        z = zookeeper.allocate(hosts)
+
+        z.create('/root', CREATOR_ALL_ACL, Persistent())
+
+        random_data = _random_data()
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, PersistentSequential(), data=random_data)
+        children, _ = z.get_children('/root')
+        count = 0
+        for child in children:
+            assert int(child[len('/root/pookie'):]) == count
+            count += 1
+
+        z.close()
+
+        z = zookeeper.allocate(hosts)
+
+        children, _ = z.get_children('/root')
+        assert len(children) == 1
+        count = 0
+        for child in children:
+            assert int(child[len('/root/pookie'):]) == count
+            count += 1
+
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, PersistentSequential(), data=random_data)
+
+        children, _ = z.get_children('/root')
+        assert len(children) == 2
+        count = 0
+        for child in sorted(children):
+            assert int(child[len('/root/pookie'):]) == count
+            count += 1
+
+        z.close()
+
+        z = zookeeper.allocate(hosts)
+        assert len(children) == 2
+        children, _ = z.get_children('/root')
+        count = 0
+        for child in children:
+            assert int(child[len('/root/pookie'):]) == count
+            count += 1
+
+        _delete(z, '/root')
+
+        assert not z.exists('/root')
+
+        z.close()
+
+    @attr('server')
     def test_data(self):
         hosts = HOSTS + self.chroot
 
@@ -141,7 +193,6 @@ class Test(object):
 
         z = zookeeper.allocate(hosts)
 
-        random_data = _random_data()
         z.create('/pookie', CREATOR_ALL_ACL + READ_ACL_UNSAFE, Persistent())
         acls, stat = z.get_acls('/pookie')
         assert len(acls) == 2
@@ -200,8 +251,7 @@ class TestChroot(Test):
 
     def tearDown(self):
         z = zookeeper.allocate(HOSTS)
-        stat = z.exists('/pookeeper')
-        z.delete('/pookeeper', stat.version)
+        _delete(z, '/pookeeper')
         z.close()
 
 
@@ -221,3 +271,12 @@ def _random_data():
     for i in range(size):
         data[i] = random.randint(0, 255)
     return data
+
+
+def _delete(z, path):
+    if not z.exists(path): return
+
+    children, stat = z.get_children(path)
+    for child in children:
+        _delete(z, path + '/' + child)
+    z.delete(path, stat.version)

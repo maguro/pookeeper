@@ -14,13 +14,15 @@
  specific language governing permissions and limitations
  under the License.
 """
-from Queue import Empty
+from Queue import Empty, Queue
+from exceptions import ValueError
 import logging
 import random
 import select
 import struct
 import threading
 import time
+from time import time as _time, time
 from toolazydogs.zookeeper import EXCEPTIONS, CONNECTING, CLOSED, CONNECTED, AuthFailedError, AUTH_FAILED
 
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
@@ -350,3 +352,41 @@ def _read(socket, length, timeout):
             raise ConnectionDropped('socket connection broken')
         msg = msg + chunk
     return msg
+
+
+class PeekableQueue(Queue):
+    def __init__(self, maxsize=0):
+        Queue.__init__(self, maxsize=0)
+
+    def peek(self, block=True, timeout=None):
+        """Return the first item in the queue but do not remove it from the queue.
+
+        If optional args 'block' is true and 'timeout' is None (the default),
+        block if necessary until an item is available. If 'timeout' is
+        a positive number, it blocks at most 'timeout' seconds and raises
+        the Empty exception if no item was available within that time.
+        Otherwise ('block' is false), return an item if one is immediately
+        available, else raise the Empty exception ('timeout' is ignored
+        in that case).
+        """
+        self.not_empty.acquire()
+        try:
+            if not block:
+                if not self._qsize():
+                    raise Empty
+            elif timeout is None:
+                while not self._qsize():
+                    self.not_empty.wait()
+            elif timeout < 0:
+                raise ValueError("'timeout' must be a positive number")
+            else:
+                endtime = _time() + timeout
+                while not self._qsize():
+                    remaining = endtime - _time()
+                    if remaining <= 0.0:
+                        raise Empty
+                    self.not_empty.wait(remaining)
+            item = self.queue[0]
+            return item
+        finally:
+            self.not_empty.release()

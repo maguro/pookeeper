@@ -23,7 +23,7 @@ import threading
 from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher
 from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.zookeeper.hosts import collect_hosts
-from toolazydogs.zookeeper.impl import WriterThread
+from toolazydogs.zookeeper.impl import WriterThread, PeekableQueue
 from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
 from toolazydogs.zookeeper.packets.proto.CloseResponse import CloseResponse
@@ -50,11 +50,8 @@ from toolazydogs.zookeeper.packets.proto.TransactionResponse import TransactionR
 
 LOGGER = logging.getLogger('toolazydogs.zookeeper')
 
-class Client(object):
+class Client33(object):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
-        from toolazydogs.zookeeper import PeekableQueue
-
-
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
@@ -141,7 +138,7 @@ class Client(object):
 
         self._call(request, response)
 
-        return response.path[len(self.chroot)]
+        return response.path[len(self.chroot):]
 
     def delete(self, path, version):
         request = DeleteRequest(_prefix_root(self.chroot, path), version)
@@ -228,17 +225,6 @@ class Client(object):
 
         return response.children, response.stat
 
-    def allocate_transaction(self):
-        return _Transaction(self)
-
-    def _multi(self, operations):
-        request = TransactionRequest(operations)
-        response = TransactionResponse(None)
-
-        self._call(request, response)
-
-        return response.results
-
     def _call(self, request, response, register_watcher=None):
         with self._state_lock:
             self._check_state()
@@ -309,6 +295,22 @@ class Client(object):
             # when the event thread encounters the connection on the queue, it
             # will kill itself
             self._events.put(self)
+
+
+class Client34(Client33):
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+        Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+
+    def allocate_transaction(self):
+        return _Transaction(self)
+
+    def _multi(self, operations):
+        request = TransactionRequest(operations)
+        response = TransactionResponse(None)
+
+        self._call(request, response)
+
+        return response.results
 
 
 class _Transaction(object):
