@@ -46,22 +46,22 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
 
 
 class Watcher(object):
-    def sessionConnected(self, session_id, session_password, read_only):
+    def session_connected(self, session_id, session_password, read_only):
         pass
 
-    def sessionExpired(self, session_id):
+    def session_expired(self, session_id):
         pass
 
-    def connectionDropped(self):
+    def connection_dropped(self):
         pass
 
-    def connectionClosed(self):
+    def connection_closed(self):
         pass
 
     def node_created(self, path):
         pass
 
-    def node_deletedself(self, path):
+    def node_deleted(self, path):
         pass
 
     def data_changed(self, path):

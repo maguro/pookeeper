@@ -30,16 +30,16 @@ class Mine(Watcher):
     def __init__(self):
         pass
 
-    def sessionConnected(self, session_id, session_password, read_only):
+    def session_connected(self, session_id, session_password, read_only):
         pass
 
-    def sessionExpired(self, session_id):
+    def session_expired(self, session_id):
         pass
 
-    def connectionDropped(self):
+    def connection_dropped(self):
         pass
 
-    def connectionClosed(self):
+    def connection_closed(self):
         pass
 
 
@@ -64,6 +64,42 @@ def test_auth():
         assert False, 'Allocation should have thrown an AuthFailedError'
     except AuthFailedError:
         pass
+
+
+class W(Watcher):
+    def __init__(self):
+        self.session_connected = 0
+        self.session_expired = 0
+        self.connection_dropped = 0
+        self.connection_closed = 0
+        self.node_created = 0
+        self.node_deleted = 0
+        self.data_changed = 0
+        self.children_changed = 0
+
+    def session_connected(self, session_id, session_password, read_only):
+        self.session_connected += 1
+
+    def session_expired(self, session_id):
+        self.session_expired += 1
+
+    def connection_dropped(self):
+        self.connection_dropped += 1
+
+    def connection_closed(self):
+        self.connection_closed += 1
+
+    def node_created(self, path):
+        self.node_created += 1
+
+    def node_deleted(self, path):
+        self.node_deleted += 1
+
+    def data_changed(self, path):
+        self.data_changed += 1
+
+    def children_changed(self, path):
+        self.children_changed += 1
 
 
 class Test(object):
@@ -184,6 +220,20 @@ class Test(object):
         _delete(z, '/root')
 
         assert not z.exists('/root')
+
+        z.close()
+
+    @attr('server')
+    def test_watch(self):
+        hosts = HOSTS + self.chroot
+
+        z = zookeeper.allocate(hosts, watcher=)
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=random_data)
+
+        z.exists('/pookie', watch=True)
+
+        _delete(z, '/pookie')
 
         z.close()
 
