@@ -87,18 +87,18 @@ class ReaderThread(threading.Thread):
                             watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.node_created(watcher_event.path), watchers)
-                        elif watcher_event == 2:
+                        elif watcher_event.type == 2:
                             watchers |= self.client.data_watchers.pop(watcher_event.path, set())
                             watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
                             watchers |= self.client.child_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.node_deleted(watcher_event.path), watchers)
-                        elif watcher_event == 3:
+                        elif watcher_event.type == 3:
                             watchers |= self.client.data_watchers.pop(watcher_event.path, set())
                             watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.data_changed(watcher_event.path), watchers)
-                        elif watcher_event == 4:
+                        elif watcher_event.type == 4:
                             watchers |= self.client.child_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.children_changed(watcher_event.path), watchers)
