@@ -104,7 +104,7 @@ class InputArchive(object):
     def read_long(self, tag):
         index = self.offset
         self.offset += 8
-        return struct.unpack_from('!q', self.buffer, index)[0]
+        return long(struct.unpack_from('!q', self.buffer, index)[0])
 
     def read_string(self, tag):
         l = self.read_int(tag)

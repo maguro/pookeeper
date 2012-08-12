@@ -15,7 +15,6 @@
  under the License.
 """
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
-from toolazydogs.zookeeper.packets.proto.ConnectRequest import ConnectRequest
 
 
 def test_byte():
@@ -39,6 +38,7 @@ def test_bool():
     ia = InputArchive(str(oa.buffer))
     assert not ia.read_bool('tag')
 
+
 def test_int():
     oa = OutputArchive()
     for b in range(256):
@@ -46,7 +46,41 @@ def test_int():
     ia = InputArchive(str(oa.buffer))
     for b in range(256):
         r = ia.read_int('tag_' + str(b))
+        assert type(r) == int
         assert b == r
+
+
+def test_long():
+    oa = OutputArchive()
+    oa.write_long(9141385893744296737, 'tag')
+    ia = InputArchive(str(oa.buffer))
+    r = ia.read_long('tag')
+    assert type(r) == long
+    assert 9141385893744296737 == r
+
+    oa = OutputArchive()
+    oa.write_long(1, 'tag')
+    ia = InputArchive(str(oa.buffer))
+    r = ia.read_long('tag')
+    assert type(r) == long
+    assert 1 == r
+
+
+def test_vector():
+    oa = OutputArchive()
+    v = [1, 2, 3, 4, 5]
+    oa.start_vector(v, 'tag')
+    for i in range(len(v)):
+        oa.write_int(v[i], 'tag_' + str(i))
+    oa.end_vector(v, 'tag')
+
+    ia = InputArchive(str(oa.buffer))
+    l = ia.start_vector('tag')
+    vv = []
+    for i in range(l):
+        vv.append(ia.read_int('tag_' + str(i)))
+    ia.end_vector('tag')
+    assert v == vv
 
 #def test_output_archive():
 #    oa = OutputArchive()
