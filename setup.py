@@ -37,6 +37,7 @@ setup(
     platforms = 'any',
     test_suite = 'nose.collector',
     install_requires = [
+        'mockito>=0.5.0',
         'nose>=1.0.0',
     ],
     classifiers = [
