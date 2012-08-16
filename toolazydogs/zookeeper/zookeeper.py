@@ -271,11 +271,11 @@ class Client33(object):
             watchers = set()
             watchers.add(self.default_watcher)
             for v in self.child_watchers.itervalues():
-                watchers.add(v)
+                watchers |= v
             for v in self.data_watchers.itervalues():
-                watchers.add(v)
+                watchers |= v
             for v in self.exists_watchers.itervalues():
-                watchers.add(v)
+                watchers |= v
             return watchers
 
     def _close(self, state):
