@@ -179,7 +179,8 @@ class Client33(object):
 
         def register_watcher(exception):
             if not exception:
-                self.data_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+                with self._state_lock:
+                    self.data_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
 
         self._call(request,
                    response,
