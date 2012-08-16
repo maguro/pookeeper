@@ -18,6 +18,8 @@ import logging
 import random
 import time
 
+from mockito import any, inorder, mock
+from mockito.mockito import verifyNoMoreInteractions
 from nose.plugins.attrib import attr
 
 from toolazydogs import zookeeper
@@ -52,6 +54,11 @@ def test_auth():
 class Test(object):
     def __init__(self, chroot=None):
         self.chroot = chroot or ''
+        z = zookeeper.allocate(HOSTS + self.chroot)
+        _delete(z, '/pookeeper')
+        _delete(z, '/pookie')
+        _delete(z, '/root')
+        z.close()
 
     @attr('server')
     def test_persistent(self):
@@ -260,6 +267,28 @@ class Test(object):
 
         z.close()
 
+    @attr('server')
+    def test_watcher(self):
+        hosts = HOSTS + self.chroot
+
+        watcher = mock()
+        z = zookeeper.allocate(hosts, watcher=watcher)
+
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie', watch=True)
+        z.set_data('/pookie', _random_data(), stat.version)
+        stat = z.exists('/pookie', watch=True)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).session_connected(any(long), any(str), False)
+        inorder.verify(watcher).data_changed(self.chroot + '/pookie')
+        inorder.verify(watcher).node_deleted(self.chroot + '/pookie')
+        inorder.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
 
 class TestChroot(Test):
     def __init__(self):
