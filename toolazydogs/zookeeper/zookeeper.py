@@ -80,16 +80,21 @@ class Client33(object):
         self._state = CONNECTING
         self._state_lock = threading.RLock()
 
+        self._event_thread_completed = threading.Event()
+
         def event_worker():
-            while True:
-                notification = self._events.get()
+            try:
+                while True:
+                    notification = self._events.get()
 
-                if notification == self: break
+                    if notification == self: break
 
-                try:
-                    notification()
-                except Exception as e:
-                    LOGGER.exception(e)
+                    try:
+                        notification()
+                    except Exception as e:
+                        LOGGER.exception(e)
+            finally:
+                self._event_thread_completed.set()
 
         self._event_thread = threading.Thread(target=event_worker)
         self._event_thread.daemon = True
@@ -121,6 +126,8 @@ class Client33(object):
             self._queue.put((CloseRequest(), CloseResponse(), close))
 
         event.wait()
+
+        self._event_thread_completed.wait()
 
         self.session_id = None
         self.session_passwd = str(bytearray([0] * 16))
