@@ -291,7 +291,7 @@ class Client33(object):
             self._writer_started.set()
 
             # notify watchers
-            self._events.put(lambda: map(lambda w: w.connection_closed(), self._all_watchers()))
+            self._events.put(lambda: map(lambda w: w.connection_closed(), set([self._default_watcher])))
 
             # drain the pending queue
             while not self._pending.empty():
