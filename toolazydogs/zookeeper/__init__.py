@@ -24,10 +24,116 @@ from toolazydogs.zookeeper.packets.data.Id import Id
 __version__ = '1.0.0-dev'
 
 def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+    """ Create a ZooKeeper client object
+
+    To create a ZooKeeper client object, the application needs to pass a
+    connection string containing a comma separated list of host:port pairs,
+    each corresponding to a ZooKeeper server.
+
+    Session establishment is asynchronous. This constructor will initiate
+    connection to the server and return immediately - potentially (usually)
+    before the session is fully established. The watcher argument specifies
+    the watcher that will be notified of any changes in state. This
+    notification can come at any point before or after the constructor call
+    has returned.
+
+    The instantiated ZooKeeper client object will pick an arbitrary server
+    from the connectString and attempt to connect to it. If establishment of
+    the connection fails, another server in the connect string will be tried
+    (the order is non-deterministic, as we random shuffle the list), until a
+    connection is established. The client will continue attempts until the
+    session is explicitly closed (or the session is expired by the server).
+
+    An optional "chroot" suffix may also be appended to the connection string.
+    This will run the client commands while interpreting all paths relative to
+    this root (similar to the unix chroot command).
+
+    Use session_id and session_passwd on an established client connection,
+    these values must be passed as session_id and session_passwd respectively
+    if reconnecting. Otherwise, if not reconnecting, use the other constructor
+    which does not require these parameters.
+
+    Args:
+        hosts: comma separated host:port pairs, each corresponding to a zk
+            server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
+            If the optional chroot suffix is used the example would look
+            like: "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002/app/a"
+            where the client would be rooted at "/app/a" and all paths
+            would be relative to this root - ie getting/setting/etc...
+            "/foo/bar" would result in operations being run on
+            "/app/a/foo/bar" (from the server perspective).
+        session_id: specific session id to use if reconnecting
+        session_passwd: password for this session
+        session_timeout: session timeout in milliseconds
+        auth_data: a list of auth data for the connection
+        read_only: whether the created client is allowed to go to
+            read-only mode in case of partitioning. Read-only mode
+            basically means that if the client can't find any majority
+            servers but there's partitioned server it could reach, it
+            connects to one in read-only mode, i.e. read requests are
+            allowed while write requests are not. It continues seeking for
+            majority in the background.
+        watcher: a watcher object which will be notified of state changes, may
+            also be notified for node events
+
+    """
     return allocate_34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
 
 
 def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+    """ Create a ZooKeeper client object
+
+    To create a ZooKeeper client object, the application needs to pass a
+    connection string containing a comma separated list of host:port pairs,
+    each corresponding to a ZooKeeper server.
+
+    Session establishment is asynchronous. This constructor will initiate
+    connection to the server and return immediately - potentially (usually)
+    before the session is fully established. The watcher argument specifies
+    the watcher that will be notified of any changes in state. This
+    notification can come at any point before or after the constructor call
+    has returned.
+
+    The instantiated ZooKeeper client object will pick an arbitrary server
+    from the connectString and attempt to connect to it. If establishment of
+    the connection fails, another server in the connect string will be tried
+    (the order is non-deterministic, as we random shuffle the list), until a
+    connection is established. The client will continue attempts until the
+    session is explicitly closed (or the session is expired by the server).
+
+    An optional "chroot" suffix may also be appended to the connection string.
+    This will run the client commands while interpreting all paths relative to
+    this root (similar to the unix chroot command).
+
+    Use session_id and session_passwd on an established client connection,
+    these values must be passed as session_id and session_passwd respectively
+    if reconnecting. Otherwise, if not reconnecting, use the other constructor
+    which does not require these parameters.
+
+    Args:
+        hosts: comma separated host:port pairs, each corresponding to a zk
+            server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
+            If the optional chroot suffix is used the example would look
+            like: "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002/app/a"
+            where the client would be rooted at "/app/a" and all paths
+            would be relative to this root - ie getting/setting/etc...
+            "/foo/bar" would result in operations being run on
+            "/app/a/foo/bar" (from the server perspective).
+        session_id: specific session id to use if reconnecting
+        session_passwd: password for this session
+        session_timeout: session timeout in milliseconds
+        auth_data: a list of auth data for the connection
+        read_only: whether the created client is allowed to go to
+            read-only mode in case of partitioning. Read-only mode
+            basically means that if the client can't find any majority
+            servers but there's partitioned server it could reach, it
+            connects to one in read-only mode, i.e. read requests are
+            allowed while write requests are not. It continues seeking for
+            majority in the background.
+        watcher: a watcher object which will be notified of state changes, may
+            also be notified for node events
+
+    """
     from toolazydogs.zookeeper.zookeeper import Client34
 
 
@@ -36,11 +142,57 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
     return handle
 
 
-def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None):
+    """ Create a ZooKeeper client object
+
+    To create a ZooKeeper client object, the application needs to pass a
+    connection string containing a comma separated list of host:port pairs,
+    each corresponding to a ZooKeeper server.
+
+    Session establishment is asynchronous. This constructor will initiate
+    connection to the server and return immediately - potentially (usually)
+    before the session is fully established. The watcher argument specifies
+    the watcher that will be notified of any changes in state. This
+    notification can come at any point before or after the constructor call
+    has returned.
+
+    The instantiated ZooKeeper client object will pick an arbitrary server
+    from the connectString and attempt to connect to it. If establishment of
+    the connection fails, another server in the connect string will be tried
+    (the order is non-deterministic, as we random shuffle the list), until a
+    connection is established. The client will continue attempts until the
+    session is explicitly closed (or the session is expired by the server).
+
+    An optional "chroot" suffix may also be appended to the connection string.
+    This will run the client commands while interpreting all paths relative to
+    this root (similar to the unix chroot command).
+
+    Use session_id and session_passwd on an established client connection,
+    these values must be passed as session_id and session_passwd respectively
+    if reconnecting. Otherwise, if not reconnecting, use the other constructor
+    which does not require these parameters.
+
+    Args:
+        hosts: comma separated host:port pairs, each corresponding to a zk
+            server. e.g. "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002"
+            If the optional chroot suffix is used the example would look
+            like: "127.0.0.1:3000,127.0.0.1:3001,127.0.0.1:3002/app/a"
+            where the client would be rooted at "/app/a" and all paths
+            would be relative to this root - ie getting/setting/etc...
+            "/foo/bar" would result in operations being run on
+            "/app/a/foo/bar" (from the server perspective).
+        session_id: specific session id to use if reconnecting
+        session_passwd: password for this session
+        session_timeout: session timeout in milliseconds
+        auth_data: a list of auth data for the connection
+        watcher: a watcher object which will be notified of state changes, may
+            also be notified for node events
+
+    """
     from toolazydogs.zookeeper.zookeeper import Client33
 
 
-    handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+    handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
 
     return handle
 
