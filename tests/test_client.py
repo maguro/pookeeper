@@ -280,6 +280,31 @@ class Test(object):
         inorder.verify(watcher).connection_closed()
         verifyNoMoreInteractions(watcher)
 
+    @attr('server')
+    def test_set_data_watcher(self):
+        hosts = HOSTS + self.chroot
+
+        watcher = mock()
+        z = zookeeper.allocate(hosts, watcher=watcher)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie')
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watch=True)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watch=True)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).session_connected(any(long), any(str), False)
+        inorder.verify(watcher).data_changed(self.chroot + '/pookie')
+        inorder.verify(watcher).node_deleted(self.chroot + '/pookie')
+        inorder.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+
 class TestChroot(Test):
     def __init__(self):
         Test.__init__(self, chroot='/pookeeper')
@@ -300,7 +325,7 @@ def setup_module():
 
     console = logging.StreamHandler()
     console.setLevel(logging.CRITICAL)
-#    console.setLevel(logging.NOTSET)
+    #console.setLevel(logging.NOTSET)
     console.setFormatter(logging.Formatter('%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'))
 
     logger.addHandler(console)
