@@ -19,6 +19,7 @@ import random
 import time
 
 from mockito import any, inorder, mock
+import mockito
 from mockito.mockito import verifyNoMoreInteractions
 from nose.plugins.attrib import attr
 
@@ -302,6 +303,37 @@ class Test(object):
         inorder.verify(watcher).data_changed(self.chroot + '/pookie')
         inorder.verify(watcher).node_deleted(self.chroot + '/pookie')
         inorder.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+    @attr('server')
+    def test_get_children_watcher(self):
+        hosts = HOSTS + self.chroot
+
+        watcher = mock()
+        z = zookeeper.allocate(hosts, watcher=watcher)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watch=True)
+
+        z.create('/pookie/bear', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watch=True)
+
+        z.set_data('/pookie', _random_data())
+        z.set_data('/pookie/bear', _random_data())
+
+        # One is for when we do and the other is for when we don't chroot
+        z.get_children('/pookie', watch=True)
+        z.get_children('/pookie/bear', watch=True)
+
+        z.delete('/pookie/bear')
+        z.delete('/pookie')
+
+        z.close()
+
+        mockito.verify(watcher).session_connected(any(long), any(str), False)
+        mockito.verify(watcher, times=2).children_changed(self.chroot + '/pookie')
+        mockito.verify(watcher).node_deleted(self.chroot + '/pookie/bear')
+        mockito.verify(watcher).connection_closed()
         verifyNoMoreInteractions(watcher)
 
 
