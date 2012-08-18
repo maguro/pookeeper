@@ -153,7 +153,10 @@ class Client33(object):
         self._call(request, None)
 
     def exists(self, path, watch=False, watcher=None):
-        request = ExistsRequest(_prefix_root(self.chroot, path), watch)
+        if watch and watcher:
+            LOGGER.warn('Both watch and watcher were specified, registering watcher')
+
+        request = ExistsRequest(_prefix_root(self.chroot, path), watch or watcher is not None)
         response = ExistsResponse(None)
 
         def register_watcher(exception):
@@ -175,7 +178,10 @@ class Client33(object):
             return None
 
     def get_data(self, path, watch=False, watcher=None):
-        request = GetDataRequest(_prefix_root(self.chroot, path), watch)
+        if watch and watcher:
+            LOGGER.warn('Both watch and watcher were specified, registering watcher')
+
+        request = GetDataRequest(_prefix_root(self.chroot, path), watch or watcher is not None)
         response = GetDataResponse(None, None)
 
         def register_watcher(exception):
@@ -220,7 +226,10 @@ class Client33(object):
         self._call(request, response)
 
     def get_children(self, path, watch=False, watcher=None):
-        request = GetChildren2Request(_prefix_root(self.chroot, path), watch)
+        if watch and watcher:
+            LOGGER.warn('Both watch and watcher were specified, registering watcher')
+
+        request = GetChildren2Request(_prefix_root(self.chroot, path), watch or watcher is not None)
         response = GetChildren2Response(None, None)
 
         def register_watcher(exception):

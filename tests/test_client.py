@@ -256,7 +256,7 @@ class Test(object):
         z.close()
 
     @attr('server')
-    def test_exists_watcher(self):
+    def test_exists_default_watcher(self):
         hosts = HOSTS + self.chroot
 
         watcher = mock()
@@ -282,7 +282,7 @@ class Test(object):
         verifyNoMoreInteractions(watcher)
 
     @attr('server')
-    def test_set_data_watcher(self):
+    def test_set_data_default_watcher(self):
         hosts = HOSTS + self.chroot
 
         watcher = mock()
@@ -306,7 +306,7 @@ class Test(object):
         verifyNoMoreInteractions(watcher)
 
     @attr('server')
-    def test_get_children_watcher(self):
+    def test_get_children_default_watcher(self):
         hosts = HOSTS + self.chroot
 
         watcher = mock()
@@ -334,6 +334,81 @@ class Test(object):
         mockito.verify(watcher, times=2).children_changed(self.chroot + '/pookie')
         mockito.verify(watcher).node_deleted(self.chroot + '/pookie/bear')
         mockito.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+    @attr('server')
+    def test_exists_watcher(self):
+        hosts = HOSTS + self.chroot
+
+        watcher = mock()
+        z = zookeeper.allocate(hosts)
+
+        assert not z.exists('/pookie', watcher=watcher)
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie', watcher=watcher)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        # This data change will be ignored since the watch has been reset
+        z.set_data('/pookie', _random_data(), stat.version)
+        stat = z.exists('/pookie', watcher=watcher)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).node_created(self.chroot + '/pookie')
+        inorder.verify(watcher).data_changed(self.chroot + '/pookie')
+        inorder.verify(watcher).node_deleted(self.chroot + '/pookie')
+        verifyNoMoreInteractions(watcher)
+
+    @attr('server')
+    def test_set_data_watcher(self):
+        hosts = HOSTS + self.chroot
+
+        watcher = mock()
+        z = zookeeper.allocate(hosts)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie')
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watcher=watcher)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watcher=watcher)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).data_changed(self.chroot + '/pookie')
+        inorder.verify(watcher).node_deleted(self.chroot + '/pookie')
+        verifyNoMoreInteractions(watcher)
+
+    @attr('server')
+    def test_get_children_watcher(self):
+        hosts = HOSTS + self.chroot
+
+        watcher = mock()
+        z = zookeeper.allocate(hosts)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watcher=watcher)
+
+        z.create('/pookie/bear', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watcher=watcher)
+
+        z.set_data('/pookie', _random_data())
+        z.set_data('/pookie/bear', _random_data())
+
+        # One is for when we do and the other is for when we don't chroot
+        z.get_children('/pookie', watcher=watcher)
+        z.get_children('/pookie/bear', watcher=watcher)
+
+        z.delete('/pookie/bear')
+        z.delete('/pookie')
+
+        z.close()
+
+        mockito.verify(watcher, times=2).children_changed(self.chroot + '/pookie')
+        mockito.verify(watcher).node_deleted(self.chroot + '/pookie/bear')
         verifyNoMoreInteractions(watcher)
 
 
