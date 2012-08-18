@@ -64,6 +64,7 @@ class Client33(object):
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
         self.session_timeout = session_timeout
         self.auth_data = auth_data if auth_data else set([])
+        self.read_only = False
 
         self.last_zxid = 0
 
