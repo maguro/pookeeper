@@ -20,7 +20,7 @@ import logging
 import socket
 import threading
 
-from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher
+from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError
 from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import WriterThread, PeekableQueue
@@ -111,6 +111,13 @@ class Client33(object):
         self._check_state()
 
     def close(self):
+        """ Close this client object
+
+        Once the client is closed, its session becomes invalid. All the
+        ephemeral nodes in the ZooKeeper server associated with the session
+        will be removed. The watches left on those nodes (and on their parents)
+        will be triggered.
+        """
         with self._state_lock:
             self._check_state()
 
@@ -136,8 +143,63 @@ class Client33(object):
             raise call_exception
 
     def create(self, path, acls, code, data=None):
+        """ Create a node with the given path
+
+        The node data will be the given data, and node acl will be the given
+        acl.
+
+        The code argument specifies whether the created node will be ephemeral
+        or not.
+
+        An ephemeral node will be removed by the ZooKeeper automatically when the
+        session associated with the creation of the node expires.
+
+        The code argument can also specify to create a sequential node. The
+        actual path name of a sequential node will be the given path plus a
+        suffix "i" where i is the current sequential number of the node. The sequence
+        number is always fixed length of 10 digits, 0 padded. Once
+        such a node is created, the sequential number will be incremented by one.
+
+        If a node with the same actual path already exists in the ZooKeeper, a
+        NodeExistsError will be raised. Note that since a different actual path
+        is used for each invocation of creating sequential node with the same
+        path argument, the call will never raise NodeExistsError.
+
+        If the parent node does not exist in the ZooKeeper, a NoNodeError will
+        be raised.
+
+        An ephemeral node cannot have children. If the parent node of the given
+        path is ephemeral, a NoChildrenForEphemeralsError will be raised.
+
+        This operation, if successful, will trigger all the watches left on the
+        node of the given path by exists and get_data() API calls, and the watches
+        left on the parent node by get_children() API calls.
+
+        If a node is created successfully, the ZooKeeper server will trigger the
+        watches on the path left by exists calls, and the watches on the parent
+        of the node by getChildren calls.
+
+        The maximum allowable size of the data array is 1 MB (1,048,576 bytes).
+        Arrays larger than this will cause a ZookeeperError to be raised.
+
+        Args:
+            path: the path for the node
+            acl: the acl for the node
+            code: specifying whether the node to be created is ephemeral
+                and/or sequential
+            data: optional initial data for the node
+
+        Returns:
+            the actual path of the created node
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+            InvalidACLError: if the ACL is invalid, null, or empty
+            ValueError: if an invalid path is specified
+
+        """
         if not acls:
-            raise ValueError('ACLs cannot be None or empty')
+            raise InvalidACLError('ACLs cannot be None or empty')
         if not code:
             raise ValueError('Creation code cannot be None')
         request = CreateRequest(_prefix_root(self.chroot, path), data, acls, code.flags)
@@ -148,11 +210,59 @@ class Client33(object):
         return response.path[len(self.chroot):]
 
     def delete(self, path, version=-1):
+        """ Delete the node with the given path
+
+        The call will succeed if such a node exists, and the given version
+        matches the node's version (if the given version is -1, the default,
+        it matches any node's versions).
+
+        A NodeExistsError will be raised if the nodes does not exist.
+
+        A BadVersionError will be raised if the given version does not match
+        the node's version.
+
+        A NotEmptyError will be raised if the node has children.
+
+        This operation, if successful, will trigger all the watches on the node
+        of the given path left by exists API calls, and the watches on the parent
+        node left by get_children() API calls.
+
+        Args:
+            path: the path of the node to be deleted.
+            version: the expected node version
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+        """
         request = DeleteRequest(_prefix_root(self.chroot, path), version)
 
         self._call(request, None)
 
     def exists(self, path, watch=False, watcher=None):
+        """ Return the stat of the node of the given path
+
+        Return null if no such a node exists.
+
+        If the watcher is non-null and the call is successful (no error is raised),
+        a watcher will be left on the node with the given path. The watcher will be
+        triggered by a successful operation that creates/delete the node or sets
+        the data on the node.
+
+        Args:
+            path: the node path
+            watch: designate the default watcher associated with this connection
+                to be the watcher
+            watcher: explicit watcher
+
+        Returns:
+            The stat of the node of the given path; return null if no such a
+            node exists.
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+        """
         if watch and watcher:
             LOGGER.warn('Both watch and watcher were specified, registering watcher')
 
@@ -178,6 +288,29 @@ class Client33(object):
             return None
 
     def get_data(self, path, watch=False, watcher=None):
+        """ Return the data and the stat of the node of the given path
+
+        If the watch is non-null and the call is successful (no error is
+        raised), a watch will be left on the node with the given path. The watch
+        will be triggered by a successful operation that sets data on the node, or
+        deletes the node.
+
+        NoNodeError will be raised if no node with the given path exists.
+
+        Args:
+            path: the given path
+            watch: designate the default watcher associated with this connection
+                to be the watcher
+            watcher: explicit watcher
+
+        Returns:
+            The data of the node
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+
+        """
         if watch and watcher:
             LOGGER.warn('Both watch and watcher were specified, registering watcher')
 
@@ -196,6 +329,34 @@ class Client33(object):
         return response.data, response.stat
 
     def set_data(self, path, data, version=-1):
+        """ Set the data for the node of the given path
+
+        Set the data for the node of the given path if such a node exists and the
+        given version matches the version of the node (if the given version is
+        -1, the default, it matches any node's versions). Return the stat of the node.
+
+        This operation, if successful, will trigger all the watches on the node
+        of the given path left by get_data() calls.
+
+        NoNodeError will be raised if no node with the given path exists.
+
+        BadVersionError will be raised if the given version does not match the node's version.
+
+        The maximum allowable size of the data array is 1 MB (1,048,576 bytes).
+        Arrays larger than this will cause a ZookeeperError to be thrown.
+
+        Args:
+            path: the path of the node
+            data: the data to set
+            version: the expected matching version
+
+        Returns:
+            The state of the node
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+        """
         request = SetDataRequest(_prefix_root(self.chroot, path), data, version)
         response = SetDataResponse(None)
 
@@ -204,6 +365,20 @@ class Client33(object):
         return response.stat
 
     def get_acls(self, path):
+        """ Return the ACL and stat of the node of the given path
+
+        NoNodeError will be raised if no node with the given path exists.
+
+        Args:
+            path: the given path for the node
+
+        Returns:
+            The ACL array of the given node
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+        """
         request = GetACLRequest(_prefix_root(self.chroot, path))
         response = GetACLResponse(None, None)
 
@@ -212,6 +387,29 @@ class Client33(object):
         return response.acl, response.stat
 
     def set_acls(self, path, acls, version=-1):
+        """ Set the ACL for the node of the given path
+
+        Set the ACL for the node of the given path if such a node exists and the
+        given version matches the version of the node. Return the stat of the
+        node.
+
+        NoNodeError will be raised if no node with the given path exists.
+
+        BadVersionError will be raised if the given version does not match the node's version.
+
+        Args:
+            path: the given path for the node
+            acl: the ACLs to set
+            version: the expected matching version
+
+        Returns:
+            The stat of the node.
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+            InvalidACLError: if the acl is invalid
+
+        """
         request = SetACLRequest(_prefix_root(self.chroot, path), acls, version)
         response = SetACLResponse(None)
 
@@ -220,12 +418,48 @@ class Client33(object):
         return response.stat
 
     def sync(self, path):
+        """ Asynchronous sync
+
+        Flushes channel between process and leader.
+
+        Args:
+            path: the given path for the node
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+        """
         request = SyncRequest(_prefix_root(self.chroot, path))
         response = SyncResponse(None)
 
         self._call(request, response)
 
     def get_children(self, path, watch=False, watcher=None):
+        """ Return the list of the children of the node of the given path
+
+        If the watch is non-null and the call is successful (no error is raised),
+        a watch will be left on the node with the given path. The watch will be
+        triggered by a successful operation that deletes the node of the given
+        path or creates/delete a child under the node.
+
+        The list of children returned is not sorted and no guarantee is provided
+        as to its natural or lexical order.
+
+        NoNodeError will be raised if no node with the given path exists.
+
+        Args:
+            path: the given path
+            watch: designate the default watcher associated with this connection
+                to be the watcher
+            watcher: explicit watcher
+
+        Returns:
+            An unordered array of children of the node with the given path
+
+        Raises:
+            ZookeeperError: if the server returns a non-zero error code
+
+        """
         if watch and watcher:
             LOGGER.warn('Both watch and watcher were specified, registering watcher')
 
@@ -320,6 +554,15 @@ class Client34(Client33):
         Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
 
     def allocate_transaction(self):
+        """ Allocate a transaction
+
+        A Transaction provides a builder object that can be used to construct
+        and commit an atomic set of operations.
+
+        Returns:
+            A Transaction builder object
+
+        """
         return _Transaction(self)
 
     def _multi(self, operations):
