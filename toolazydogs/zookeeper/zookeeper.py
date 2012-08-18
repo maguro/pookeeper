@@ -51,7 +51,7 @@ from toolazydogs.zookeeper.packets.proto.TransactionResponse import TransactionR
 LOGGER = logging.getLogger('toolazydogs.zookeeper')
 
 class Client33(object):
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None):
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
@@ -64,7 +64,6 @@ class Client33(object):
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
         self.session_timeout = session_timeout
         self.auth_data = auth_data if auth_data else set([])
-        self.read_only = read_only
 
         self.last_zxid = 0
 
@@ -551,7 +550,8 @@ class Client33(object):
 
 class Client34(Client33):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
-        Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+        Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
+        self.read_only = read_only
 
     def allocate_transaction(self):
         """ Allocate a transaction
