@@ -58,6 +58,7 @@ class Test(object):
         _delete(z, '/pookeeper')
         _delete(z, '/pookie')
         _delete(z, '/root')
+        _delete(z, '/foo')
         z.close()
 
     @attr('server')
@@ -178,20 +179,6 @@ class Test(object):
         z.close()
 
     @attr('server')
-    def test_watch(self):
-        hosts = HOSTS + self.chroot
-
-        z = zookeeper.allocate(hosts)
-        random_data = _random_data()
-        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=random_data)
-
-        z.exists('/pookie', watch=True)
-
-        _delete(z, '/pookie')
-
-        z.close()
-
-    @attr('server')
     def test_data(self):
         hosts = HOSTS + self.chroot
 
@@ -268,7 +255,7 @@ class Test(object):
         z.close()
 
     @attr('server')
-    def test_watcher(self):
+    def test_exists_watcher(self):
         hosts = HOSTS + self.chroot
 
         watcher = mock()
@@ -278,6 +265,8 @@ class Test(object):
         z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
 
         stat = z.exists('/pookie', watch=True)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        # This data change will be ignored since the watch has been reset
         z.set_data('/pookie', _random_data(), stat.version)
         stat = z.exists('/pookie', watch=True)
         z.delete('/pookie', stat.version)
@@ -310,6 +299,7 @@ def setup_module():
 
     console = logging.StreamHandler()
     console.setLevel(logging.CRITICAL)
+#    console.setLevel(logging.NOTSET)
     console.setFormatter(logging.Formatter('%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'))
 
     logger.addHandler(console)
