@@ -72,10 +72,10 @@ class Client33(object):
         self._pending = Queue()
 
         self._events = Queue()
-        self.child_watchers = defaultdict(set)
-        self.data_watchers = defaultdict(set)
-        self.exists_watchers = defaultdict(set)
-        self.default_watcher = watcher or Watcher()
+        self._child_watchers = defaultdict(set)
+        self._data_watchers = defaultdict(set)
+        self._exists_watchers = defaultdict(set)
+        self._default_watcher = watcher or Watcher()
 
         self._state = CONNECTING
         self._state_lock = threading.RLock()
@@ -100,13 +100,13 @@ class Client33(object):
         self._event_thread.daemon = True
         self._event_thread.start()
 
-        self.writer_started = threading.Event()
+        self._writer_started = threading.Event()
 
-        writer_thread = WriterThread(self, self.writer_started)
+        writer_thread = WriterThread(self, self._writer_started)
         writer_thread.setDaemon(True)
         writer_thread.start()
 
-        self.writer_started.wait()
+        self._writer_started.wait()
 
         self._check_state()
 
@@ -160,10 +160,10 @@ class Client33(object):
             def register_watcher(exception):
                 if not exception:
                     with self._state_lock:
-                        self.data_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+                        self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
                 elif exception == NoNodeError:
                     with self._state_lock:
-                        self.exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+                        self._exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
             self._call(request,
                        response,
@@ -180,7 +180,7 @@ class Client33(object):
         def register_watcher(exception):
             if not exception:
                 with self._state_lock:
-                    self.data_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+                    self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
         self._call(request,
                    response,
@@ -225,7 +225,7 @@ class Client33(object):
         def register_watcher(exception):
             if not exception:
                 with self._state_lock:
-                    self.child_watchers[_prefix_root(self.chroot, path)].add(watcher or self.default_watcher)
+                    self._child_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
         self._call(request,
                    response,
@@ -269,12 +269,12 @@ class Client33(object):
     def _all_watchers(self):
         with self._state_lock:
             watchers = set()
-            watchers.add(self.default_watcher)
-            for v in self.child_watchers.itervalues():
+            watchers.add(self._default_watcher)
+            for v in self._child_watchers.itervalues():
                 watchers |= v
-            for v in self.data_watchers.itervalues():
+            for v in self._data_watchers.itervalues():
                 watchers |= v
-            for v in self.exists_watchers.itervalues():
+            for v in self._exists_watchers.itervalues():
                 watchers |= v
             return watchers
 
@@ -287,7 +287,7 @@ class Client33(object):
 
             # People may be waiting for the writer to start even though it
             # has already aborted the mission.
-            self.writer_started.set()
+            self._writer_started.set()
 
             # notify watchers
             self._events.put(lambda: map(lambda w: w.connection_closed(), self._all_watchers()))

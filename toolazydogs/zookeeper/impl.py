@@ -22,9 +22,9 @@ import select
 import struct
 import threading
 import time
-from time import time as _time, time
-from toolazydogs.zookeeper import EXCEPTIONS, CONNECTING, CLOSED, CONNECTED, AuthFailedError, AUTH_FAILED
+from time import time as _time
 
+from toolazydogs.zookeeper import EXCEPTIONS, CONNECTING, CLOSED, CONNECTED, AuthFailedError, AUTH_FAILED
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
@@ -83,23 +83,23 @@ class ReaderThread(threading.Thread):
                     watchers = set()
                     with self.client._state_lock:
                         if watcher_event.type == 1:
-                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._data_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._exists_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.node_created(watcher_event.path), watchers)
                         elif watcher_event.type == 2:
-                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.child_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._data_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._exists_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._child_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.node_deleted(watcher_event.path), watchers)
                         elif watcher_event.type == 3:
-                            watchers |= self.client.data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client.exists_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._data_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._exists_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.data_changed(watcher_event.path), watchers)
                         elif watcher_event.type == 4:
-                            watchers |= self.client.child_watchers.pop(watcher_event.path, set())
+                            watchers |= self.client._child_watchers.pop(watcher_event.path, set())
 
                             event = lambda: map(lambda w: w.children_changed(watcher_event.path), watchers)
                         else:
