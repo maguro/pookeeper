@@ -147,7 +147,7 @@ class Client33(object):
 
         return response.path[len(self.chroot):]
 
-    def delete(self, path, version):
+    def delete(self, path, version=-1):
         request = DeleteRequest(_prefix_root(self.chroot, path), version)
 
         self._call(request, None)
@@ -189,7 +189,7 @@ class Client33(object):
 
         return response.data, response.stat
 
-    def set_data(self, path, data, version):
+    def set_data(self, path, data, version=-1):
         request = SetDataRequest(_prefix_root(self.chroot, path), data, version)
         response = SetDataResponse(None)
 
@@ -205,7 +205,7 @@ class Client33(object):
 
         return response.acl, response.stat
 
-    def set_acls(self, path, acls, version):
+    def set_acls(self, path, acls, version=-1):
         request = SetACLRequest(_prefix_root(self.chroot, path), acls, version)
         response = SetACLResponse(None)
 
