@@ -261,7 +261,7 @@ class Test(object):
         watcher = mock()
         z = zookeeper.allocate(hosts, watcher=watcher)
 
-        random_data = _random_data()
+        assert not z.exists('/pookie', watch=True)
         z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
 
         stat = z.exists('/pookie', watch=True)
@@ -274,6 +274,7 @@ class Test(object):
         z.close()
 
         inorder.verify(watcher).session_connected(any(long), any(str), False)
+        inorder.verify(watcher).node_created(self.chroot + '/pookie')
         inorder.verify(watcher).data_changed(self.chroot + '/pookie')
         inorder.verify(watcher).node_deleted(self.chroot + '/pookie')
         inorder.verify(watcher).connection_closed()

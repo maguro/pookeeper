@@ -156,21 +156,22 @@ class Client33(object):
         request = ExistsRequest(_prefix_root(self.chroot, path), watch)
         response = ExistsResponse(None)
 
-        try:
-            def register_watcher(exception):
-                if not exception:
-                    with self._state_lock:
-                        self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
-                elif exception == NoNodeError:
-                    with self._state_lock:
-                        self._exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
+        def register_watcher(exception):
+            if not exception:
+                with self._state_lock:
+                    self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
+            elif exception == NoNodeError:
+                with self._state_lock:
+                    self._exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
+        try:
             self._call(request,
                        response,
                        lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
 
             return response.stat if response.stat.czxid != -1 else None
         except NoNodeError:
+            register_watcher(NoNodeError)
             return None
 
     def get_data(self, path, watch=False, watcher=None):
