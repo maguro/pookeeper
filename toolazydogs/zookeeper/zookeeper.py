@@ -616,6 +616,15 @@ class _Transaction(object):
 
             return results
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        """ commit and cleanup accumulated transaction data structures
+        """
+        if not type:
+            self.commit()
+
     def _check_tx_state(self):
         if self.committed:
             raise ValueError('Transaction already committed')

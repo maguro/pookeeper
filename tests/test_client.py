@@ -252,6 +252,17 @@ class Test(object):
         transaction.delete('/foo', stat.version)
         transaction.commit()
 
+
+        stat = z.exists('/pookie')
+        z.delete('/pookie', stat.version)
+        assert not z.exists('/foo')
+
+        # test with
+        z.create('/foo', CREATOR_ALL_ACL, Persistent())
+        with z.allocate_transaction() as t:
+            t.create('/pookie', CREATOR_ALL_ACL, Persistent())
+            t.check('/foo', stat.version)
+            t.delete('/foo', stat.version)
         stat = z.exists('/pookie')
         z.delete('/pookie', stat.version)
         assert not z.exists('/foo')
