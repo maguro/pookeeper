@@ -119,7 +119,10 @@ class Client33(object):
         will be triggered.
         """
         with self._state_lock:
-            self._check_state()
+            if self._state == AUTH_FAILED:
+                return
+            if self._state == CLOSED:
+                return
 
             call_exception = None
             event = threading.Event()
