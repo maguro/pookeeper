@@ -241,7 +241,7 @@ class WriterThread(threading.Thread):
 
         if connection_response.timeOut < 0:
             LOGGER.error('Session expired')
-            self.client._events.put(lambda: map(lambda w: w.session_expired(self.client.session_id),  set([self.client._default_watcher])))
+            self.client._events.put(lambda: self.client._default_watcher.session_expired(self.client.session_id))
             raise RuntimeError('Session expired')
         else:
             if zxid: self.client.last_zxid = zxid
@@ -254,7 +254,7 @@ class WriterThread(threading.Thread):
             LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
             LOGGER.debug('    connect timeout: %s', self.connect_timeout)
             LOGGER.debug('    read timeout: %s', self.read_timeout)
-            self.client._events.put(lambda: map(lambda w: w.session_connected(self.client.session_id, self.client.session_passwd, self.client.read_only), self.client._all_watchers()))
+            self.client._events.put(lambda: self.client._default_watcher.session_connected(self.client.session_id, self.client.session_passwd, self.client.read_only))
 
         self.client._state = CONNECTED
         connect_failures = 0
