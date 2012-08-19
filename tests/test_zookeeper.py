@@ -14,9 +14,14 @@
  specific language governing permissions and limitations
  under the License.
 """
-from toolazydogs.zookeeper import CREATE_CODES, Persistent, Ephemeral, PersistentSequential, EphemeralSequential, EXCEPTIONS, SystemZookeeperError, RuntimeInconsistency, DataInconsistency, ConnectionLoss, MarshallingError, UnimplementedError, OperationTimeoutError, BadArgumentsError, APIError, NoNodeError, NoAuthError, BadVersionError, NoChildrenForEphemeralsError, NodeExistsError, NotEmptyError, SessionExpiredError, InvalidCallbackError, InvalidACLError, AuthFailedError
+from toolazydogs.zookeeper import CREATE_CODES, Persistent, Ephemeral, PersistentSequential, EphemeralSequential, EXCEPTIONS, SystemZookeeperError, RuntimeInconsistency, DataInconsistency, ConnectionLoss, MarshallingError, UnimplementedError, OperationTimeoutError, BadArgumentsError, APIError, NoNodeError, NoAuthError, BadVersionError, NoChildrenForEphemeralsError, NodeExistsError, NotEmptyError, SessionExpiredError, InvalidCallbackError, InvalidACLError, AuthFailedError, Connecting, AuthFailed
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.zookeeper import _prefix_root
+
+
+def test_state():
+    assert Connecting() == Connecting()
+    assert not Connecting() == AuthFailed()
 
 
 def test_CREATE_CODES():
