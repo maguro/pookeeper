@@ -228,6 +228,18 @@ class State(object):
         self.code = code
         self.description = description
 
+    def __eq__(self, other):
+        return self.code == other.code
+
+    def __hash__(self):
+        return hash(self.code)
+
+    def __str__(self):
+        return self.code
+
+    def __repr__(self):
+        return '%s()' % self.__class__.__name__
+
 
 class Connecting(State):
     def __init__(self):
