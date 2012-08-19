@@ -146,10 +146,9 @@ class ReaderThread(threading.Thread):
 
 
 class WriterThread(threading.Thread):
-    def __init__(self, client, writer_started):
+    def __init__(self, client):
         super(WriterThread, self).__init__()
         self.client = client
-        self.writer_started = writer_started
 
     def run(self):
         LOGGER.debug('Starting writer')
@@ -171,7 +170,6 @@ class WriterThread(threading.Thread):
                 reader_thread.start()
 
                 reader_started.wait()
-                self.writer_started.set()
 
                 xid = 0
                 while not writer_done:
@@ -202,11 +200,16 @@ class WriterThread(threading.Thread):
                 LOGGER.info('Closing connection to %s:%s', host, port)
 
                 if writer_done:
+                    self.client._close(CLOSED)
                     break
             except ConnectionDropped:
                 LOGGER.warning('Connection dropped')
                 self.client._events.put(lambda: map(lambda w: w.connection_dropped(), self.client._all_watchers()))
                 time.sleep(random.random())
+            except AuthFailedError:
+                print '*** AUTH_FAILED closing'
+                self.client._close(AUTH_FAILED)
+                break
             except Exception as e:
                 LOGGER.warning(e)
                 time.sleep(random.random())
@@ -217,7 +220,6 @@ class WriterThread(threading.Thread):
                     # still needs to be read from the socket.
                     s.close()
 
-        self.client._close(CLOSED)
         LOGGER.debug('Writer stopped')
 
     def _connect(self, s, host, port):
@@ -259,15 +261,10 @@ class WriterThread(threading.Thread):
         self.client._state = CONNECTED
         connect_failures = 0
 
-        try:
-            for scheme, auth in self.client.auth_data:
-                ap = AuthPacket(0, scheme, auth)
-                zxid = _invoke(s, self.connect_timeout, ap, xid=-4)
-                if zxid: self.client.last_zxid = zxid
-        except AuthFailedError:
-            self.client._close(AUTH_FAILED)
-            LOGGER.debug('Writer stopped')
-            return
+        for scheme, auth in self.client.auth_data:
+            ap = AuthPacket(0, scheme, auth)
+            zxid = _invoke(s, self.connect_timeout, ap, xid=-4)
+            if zxid: self.client.last_zxid = zxid
 
 
 def _invoke(socket, timeout, request, response=None, xid=None):
