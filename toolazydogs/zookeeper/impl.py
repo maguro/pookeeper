@@ -207,7 +207,7 @@ class WriterThread(threading.Thread):
                 self.client._events.put(lambda: map(lambda w: w.connection_dropped(), self.client._all_watchers()))
                 time.sleep(random.random())
             except AuthFailedError:
-                print '*** AUTH_FAILED closing'
+                LOGGER.warning('AUTH_FAILED closing')
                 self.client._close(AUTH_FAILED)
                 break
             except Exception as e:

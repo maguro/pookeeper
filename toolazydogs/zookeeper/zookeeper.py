@@ -94,19 +94,16 @@ class Client33(object):
                     except Exception as e:
                         LOGGER.exception(e)
             finally:
+                LOGGER.debug('Event loop completed')
                 self._event_thread_completed.set()
 
         self._event_thread = threading.Thread(target=event_worker)
         self._event_thread.daemon = True
         self._event_thread.start()
 
-        self._writer_started = threading.Event()
-
-        writer_thread = WriterThread(self, self._writer_started)
+        writer_thread = WriterThread(self)
         writer_thread.setDaemon(True)
         writer_thread.start()
-
-        self._writer_started.wait()
 
         self._check_state()
 
@@ -532,16 +529,22 @@ class Client33(object):
         with self._state_lock:
             self._state = state
 
-            # People may be waiting for the writer to start even though it
-            # has already aborted the mission.
-            self._writer_started.set()
-
             # notify watchers
-            self._events.put(lambda: map(lambda w: w.connection_closed(), set([self._default_watcher])))
+            self._events.put(lambda: self._default_watcher.connection_closed())
+
+            LOGGER.debug('CLOSING %s %s pending calls', state, self._pending.qsize())
+            LOGGER.debug('        %s %s queued calls', ' ' * len(str(state)), self._queue.qsize())
 
             # drain the pending queue
             while not self._pending.empty():
-                request, response, callback, xid = self._pending.get()
+                _, _, callback, _ = self._pending.get()
+                if state == CLOSED:
+                    callback(ConnectionLoss())
+                elif state == AUTH_FAILED:
+                    callback(AuthFailedError())
+
+            while not self._queue.empty():
+                _, _, callback = self._queue.get()
                 if state == CLOSED:
                     callback(ConnectionLoss())
                 elif state == AUTH_FAILED:

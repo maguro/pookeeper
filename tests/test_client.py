@@ -45,11 +45,14 @@ def test_ping():
 
 @attr('server')
 def test_auth():
+    z = zookeeper.allocate(HOSTS, auth_data=set([('a', 'b')]))
     try:
-        zookeeper.allocate(HOSTS, auth_data=set([('a', 'b')]))
+        z.exists('/zookeeper')
         assert False, 'Allocation should have thrown an AuthFailedError'
     except AuthFailedError:
         pass
+    finally:
+        z.close()
 
 
 class Test(object):
