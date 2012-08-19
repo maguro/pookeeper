@@ -252,6 +252,26 @@ class Test(object):
         transaction.delete('/foo', stat.version)
         transaction.commit()
 
+        try:
+            transaction.create('/pookie', CREATOR_ALL_ACL, Persistent())
+            assert False, 'Transaction already committed - create should have failed'
+        except ValueError:
+            pass
+        try:
+            transaction.check('/foo', stat.version)
+            assert False, 'Transaction already committed - check should have failed'
+        except ValueError:
+            pass
+        try:
+            transaction.delete('/foo', stat.version)
+            assert False, 'Transaction already committed - delete should have failed'
+        except ValueError:
+            pass
+        try:
+            transaction.commit()
+            assert False, 'Transaction already committed - commit should have failed'
+        except ValueError:
+            pass
 
         stat = z.exists('/pookie')
         z.delete('/pookie', stat.version)
@@ -263,6 +283,7 @@ class Test(object):
             t.create('/pookie', CREATOR_ALL_ACL, Persistent())
             t.check('/foo', stat.version)
             t.delete('/foo', stat.version)
+
         stat = z.exists('/pookie')
         z.delete('/pookie', stat.version)
         assert not z.exists('/foo')
