@@ -510,18 +510,6 @@ class Client33(object):
         if self._state == CLOSED:
             raise SessionExpiredError()
 
-    def _all_watchers(self):
-        with self._state_lock:
-            watchers = set()
-            watchers.add(self._default_watcher)
-            for v in self._child_watchers.itervalues():
-                watchers |= v
-            for v in self._data_watchers.itervalues():
-                watchers |= v
-            for v in self._exists_watchers.itervalues():
-                watchers |= v
-            return watchers
-
     def _close(self, state):
         """ The party is over.  Time to clean up
         """
