@@ -321,10 +321,10 @@ def _write(socket, buffer, timeout):
     sent = 0
     while sent < len(buffer):
         _, ready_to_write, _ = select.select([], [socket], [], timeout)
-        sent = ready_to_write[0].send(buffer[sent:])
-        if not sent:
+        count = ready_to_write[0].send(buffer[sent:])
+        if not count:
             raise ConnectionDropped('socket connection broken')
-        sent = sent + sent
+        sent += count
 
 
 def _read_header(socket, timeout):
