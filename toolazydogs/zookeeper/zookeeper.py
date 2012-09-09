@@ -280,7 +280,7 @@ class Client33(object):
         try:
             self._call(request,
                        response,
-                       lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
+                       register_watcher if (watch or watcher) else lambda e: True)
 
             return response.stat if response.stat.czxid != -1 else None
         except NoNodeError:
@@ -324,7 +324,7 @@ class Client33(object):
 
         self._call(request,
                    response,
-                   lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
+                   register_watcher if (watch or watcher) else lambda e: True)
 
         return response.data, response.stat
 
@@ -473,7 +473,7 @@ class Client33(object):
 
         self._call(request,
                    response,
-                   lambda e: register_watcher(e) if (watch or watcher) else lambda: True)
+                   register_watcher if (watch or watcher) else lambda e: True)
 
         return response.children, response.stat
 
