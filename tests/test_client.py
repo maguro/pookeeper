@@ -36,7 +36,7 @@ def test_ping():
     """
     z = zookeeper.allocate(HOSTS, session_timeout=1.0)
 
-    time.sleep(10)
+    time.sleep(5)
 
     z.get_children('/')
 
