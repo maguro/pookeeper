@@ -237,7 +237,7 @@ class WriterThread(threading.Thread):
 
     def _connect(self, s, host, port):
         LOGGER.info('Connecting to %s:%s', host, port)
-        LOGGER.debug('    Using session_id: %r session_passwd: 0x%s', self.client.session_id, _hex(self.client.session_passwd))
+        LOGGER.debug('    Using session_id: %r session_passwd: 0x%s', self.client.session_id, self.client.session_passwd.encode('hex'))
 
         s.connect((host, port))
         s.setblocking(0)
@@ -265,7 +265,8 @@ class WriterThread(threading.Thread):
             self.connect_timeout = negotiated_session_timeout / len(self.client.hosts)
             self.read_timeout = negotiated_session_timeout * 2.0 / 3.0
             self.client.session_passwd = connection_response.passwd
-            LOGGER.debug('Session created, session_id: %r session_passwd: 0x%s', self.client.session_id, _hex(self.client.session_passwd))
+
+            LOGGER.debug('Session created, session_id: %r session_passwd: 0x%s', self.client.session_id, self.client.session_passwd.encode('hex'))
             LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
             LOGGER.debug('    connect timeout: %s', self.connect_timeout)
             LOGGER.debug('    read timeout: %s', self.read_timeout)
@@ -314,10 +315,6 @@ def _invoke(socket, timeout, request, response=None, xid=None):
         LOGGER.debug('Read response %r', response)
 
     return zxid
-
-
-def _hex(bindata):
-    return bindata.encode('hex')
 
 
 def _submit(socket, request, timeout, xid=None):
