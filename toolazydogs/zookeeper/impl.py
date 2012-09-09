@@ -76,37 +76,44 @@ class ReaderThread(threading.Thread):
                     LOGGER.debug('Received AUTH')
                     continue
                 elif header.xid == -1:
-                    LOGGER.debug('Received EVENT')
                     watcher_event = WatcherEvent(None, None, None)
                     watcher_event.deserialize(buffer, 'event')
 
+                    path = watcher_event.path
                     watchers = set()
                     with self.client._state_lock:
                         if watcher_event.type == 1:
-                            watchers |= self.client._data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client._exists_watchers.pop(watcher_event.path, set())
+                            LOGGER.debug('Received created event %s', path)
+                            watchers |= self.client._data_watchers.pop(path, set())
+                            watchers |= self.client._exists_watchers.pop(path, set())
+                            LOGGER.debug(' with %r', watchers)
 
-                            event = lambda: map(lambda w: w.node_created(watcher_event.path), watchers)
+                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
                         elif watcher_event.type == 2:
-                            watchers |= self.client._data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client._exists_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client._child_watchers.pop(watcher_event.path, set())
+                            LOGGER.debug('Received deleted event %s', path)
+                            watchers |= self.client._data_watchers.pop(path, set())
+                            watchers |= self.client._exists_watchers.pop(path, set())
+                            watchers |= self.client._child_watchers.pop(path, set())
+                            LOGGER.debug(' with %r', watchers)
 
-                            event = lambda: map(lambda w: w.node_deleted(watcher_event.path), watchers)
+                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
                         elif watcher_event.type == 3:
-                            watchers |= self.client._data_watchers.pop(watcher_event.path, set())
-                            watchers |= self.client._exists_watchers.pop(watcher_event.path, set())
+                            LOGGER.debug('Received data changed event %s', path)
+                            watchers |= self.client._data_watchers.pop(path, set())
+                            watchers |= self.client._exists_watchers.pop(path, set())
+                            LOGGER.debug(' with %r', watchers)
 
-                            event = lambda: map(lambda w: w.data_changed(watcher_event.path), watchers)
+                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
                         elif watcher_event.type == 4:
-                            watchers |= self.client._child_watchers.pop(watcher_event.path, set())
+                            LOGGER.debug('Received children changed event %s', path)
+                            watchers |= self.client._child_watchers.pop(path, set())
+                            LOGGER.debug(' with %r', watchers)
 
-                            event = lambda: map(lambda w: w.children_changed(watcher_event.path), watchers)
+                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.children_changed(p)))
                         else:
                             LOGGER.warn('Received unknown event %r', watcher_event.type)
                             continue
 
-                    self.client._events.put(event)
                 else:
                     LOGGER.debug('Reading for header %r', header)
 
@@ -143,6 +150,17 @@ class ReaderThread(threading.Thread):
                 break
 
         LOGGER.debug('Reader stopped')
+
+
+def _event_factory(path, watchers, callback):
+    def event():
+        for watcher in watchers:
+            try:
+                callback(watcher, path)
+            except:
+                LOGGER.exception()
+
+    return event
 
 
 class WriterThread(threading.Thread):
