@@ -55,16 +55,14 @@ class ReaderThread(threading.Thread):
     cleanup and state orchestration.
     """
 
-    def __init__(self, client, s, reader_started, reader_done, read_timeout):
+    def __init__(self, client, s, reader_done, read_timeout):
         super(ReaderThread, self).__init__()
         self.client = client
         self.s = s
-        self.reader_started = reader_started
         self.reader_done = reader_done
         self.read_timeout = read_timeout
 
     def run(self):
-        self.reader_started.set()
 
         while True:
             try:
@@ -181,13 +179,10 @@ class WriterThread(threading.Thread):
             try:
                 self._connect(s, host, port)
 
-                reader_started = threading.Event()
                 reader_done = threading.Event()
 
-                reader_thread = ReaderThread(self.client, s, reader_started, reader_done, self.read_timeout)
+                reader_thread = ReaderThread(self.client, s, reader_done, self.read_timeout)
                 reader_thread.start()
-
-                reader_started.wait()
 
                 xid = 0
                 while not writer_done:
