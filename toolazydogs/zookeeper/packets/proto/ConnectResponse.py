@@ -18,11 +18,12 @@
 """
 
 class ConnectResponse:
-    def __init__(self, protocolVersion, timeOut, sessionId, passwd):
+    def __init__(self, protocolVersion, timeOut, sessionId, passwd, readOnly):
         self.protocolVersion = protocolVersion
         self.timeOut = timeOut
         self.sessionId = sessionId
         self.passwd = passwd
+        self.readOnly = readOnly
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
@@ -30,6 +31,7 @@ class ConnectResponse:
         output_archive.write_int(self.timeOut, 'timeOut')
         output_archive.write_long(self.sessionId, 'sessionId')
         output_archive.write_buffer(self.passwd, 'passwd')
+        output_archive.write_bool(self.passwd, 'readOnly')
         output_archive.end_record(tag)
 
     def deserialize(self, input_archive, tag):
@@ -38,16 +40,20 @@ class ConnectResponse:
         self.timeOut = input_archive.read_int('timeOut')
         self.sessionId = input_archive.read_long('sessionId')
         self.passwd = input_archive.read_buffer('passwd')
+        try:
+            self.readOnly = input_archive.read_bool('readOnly')
+        except:
+            self.readOnly = False
         input_archive.end_record(tag)
 
     def __repr__(self):
-        return 'ConnectResponse(%r, %r, %r, %r)' % (self.protocolVersion, self.timeOut, self.sessionId, self.passwd)
+        return 'ConnectResponse(%r, %r, %r, %r, %r)' % (self.protocolVersion, self.timeOut, self.sessionId, self.passwd, self.readOnly)
 
     def __eq__(self, other):
-        return self.protocolVersion == other.protocolVersion and self.timeOut == other.timeOut and self.sessionId == other.sessionId and self.passwd == other.passwd
+        return self.protocolVersion == other.protocolVersion and self.timeOut == other.timeOut and self.sessionId == other.sessionId and self.passwd == other.passwd and self.readOnly == other.readOnly
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.protocolVersion, self.timeOut, self.sessionId, self.passwd))
+        return hash((self.protocolVersion, self.timeOut, self.sessionId, self.passwd, self.readOnly))

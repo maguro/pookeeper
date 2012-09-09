@@ -250,7 +250,7 @@ class WriterThread(threading.Thread):
                                          self.client.session_id or 0,
                                          self.client.session_passwd,
                                          self.client.read_only)
-        connection_response = ConnectResponse(None, None, None, None)
+        connection_response = ConnectResponse(None, None, None, None, None)
 
         zxid = _invoke(s, self.client.session_timeout, connect_request, connection_response)
 
