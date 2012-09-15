@@ -3,15 +3,34 @@
 # Packages
 *.egg
 *.egg-info
-dist
-build
-eggs
-parts
-bin
-var
-sdist
-develop-eggs
-.installed.cfg
+*.komodo*
+*.kpf
+*.log
+*.pid
+*.pyc
+*.swp
+*.*.swp
+.*.*.swo
+bin/
+build/
+develop-eggs/
+dist/
+docs/_build
+dropin.cache
+eggs/
+include/
+lib/
+man/
+parts/
+share/
+.coverage
+.idea
+.pip_cache
+.project
+.pydevproject
+.tox
+/.settings
+/.metadata
 
 # Installer logs
 pip-log.txt
