@@ -204,6 +204,9 @@ class Watcher(object):
     def session_expired(self, session_id):
         pass
 
+    def auth_failed(self):
+        pass
+
     def connection_dropped(self):
         pass
 

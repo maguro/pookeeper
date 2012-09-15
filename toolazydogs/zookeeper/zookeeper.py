@@ -20,7 +20,7 @@ import logging
 import socket
 import threading
 
-from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError
+from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO
 from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import WriterThread, PeekableQueue
@@ -63,6 +63,8 @@ class Client33(object):
         self.session_id = session_id
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
         self.session_timeout = session_timeout
+        self.connect_timeout = session_timeout / len(hosts)
+        self.read_timeout = session_timeout * 2.0 / 3.0
         self.auth_data = auth_data if auth_data else set([])
         self.read_only = False
 
@@ -505,42 +507,74 @@ class Client33(object):
 
 
     def _check_state(self):
-        if self._state == AUTH_FAILED:
-            raise AuthFailedError()
-        if self._state == CLOSED:
-            raise SessionExpiredError()
+        with self._state_lock:
+            if self._state == AUTH_FAILED:
+                raise AuthFailedError()
+            if self._state == CLOSED:
+                raise SessionExpiredError()
 
-    def _close(self, state):
+    def _connected(self, session_id, session_passwd, read_only):
+        with self._state_lock:
+            LOGGER.debug('Connected %s', 'read-only mode' if read_only else '')
+
+            self._state = CONNECTED_RO if read_only else CONNECTED
+            self._events.put(lambda: self._default_watcher.session_connected(session_id, session_passwd, read_only))
+
+    def _disconnected(self):
+        assert self._state in set([CONNECTING, CONNECTED, CONNECTED_RO])
+        with self._state_lock:
+            if self._state == CONNECTING: return
+
+            LOGGER.debug('Disconnected %s %s pending calls', self._state, self._pending.qsize())
+            LOGGER.debug('        %s %s queued calls', ' ' * len(str(self._state)), self._queue.qsize())
+
+            self._state = CONNECTING
+
+            self._events.put(lambda: self._default_watcher.connection_dropped())
+
+            # drain queues
+            self._drain(ConnectionLoss())
+
+    def _closed(self, state, session_expired=False):
         """ The party is over.  Time to clean up
         """
         assert state in set([CLOSED, AUTH_FAILED])
         with self._state_lock:
             self._state = state
 
-            # notify watchers
-            self._events.put(lambda: self._default_watcher.connection_closed())
-
             LOGGER.debug('CLOSING %s %s pending calls', state, self._pending.qsize())
             LOGGER.debug('        %s %s queued calls', ' ' * len(str(state)), self._queue.qsize())
+            if session_expired:
+                LOGGER.debug('        session expired')
 
-            # drain the pending queue
-            while not self._pending.empty():
-                _, _, callback, _ = self._pending.get()
-                if state == CLOSED:
-                    callback(ConnectionLoss())
-                elif state == AUTH_FAILED:
-                    callback(AuthFailedError())
+            # notify watchers
+            if state == AUTH_FAILED:
+                self._events.put(lambda: self._default_watcher.auth_failed())
+            elif session_expired:
+                self._events.put(lambda: self._default_watcher.session_expired(self.session_id))
+            else:
+                self._events.put(lambda: self._default_watcher.connection_closed())
 
-            while not self._queue.empty():
-                _, _, callback = self._queue.get()
-                if state == CLOSED:
-                    callback(ConnectionLoss())
-                elif state == AUTH_FAILED:
-                    callback(AuthFailedError())
+            # drain queues
+            if state == CLOSED:
+                self._drain(SessionExpiredError() if session_expired else ConnectionLoss())
+            elif state == AUTH_FAILED:
+                self._drain(AuthFailedError())
 
             # when the event thread encounters the connection on the queue, it
             # will kill itself
             self._events.put(self)
+
+    def _drain(self, error):
+        assert self._state_lock._is_owned()
+
+        while not self._pending.empty():
+            _, _, callback, _ = self._pending.get()
+            callback(error)
+
+        while not self._queue.empty():
+            _, _, callback = self._queue.get()
+            callback(error)
 
 
 class Client34(Client33):

@@ -24,7 +24,7 @@ import threading
 import time
 from time import time as _time
 
-from toolazydogs.zookeeper import EXCEPTIONS, CONNECTING, CLOSED, CONNECTED, AuthFailedError, AUTH_FAILED
+from toolazydogs.zookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED
 from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
@@ -46,6 +46,20 @@ class ConnectionDropped(RuntimeError):
         super(ConnectionDropped, self).__init__(*args, **kwargs)
 
 
+class SessionTimeout(RuntimeError):
+    """ Internal error for jumping out of loops """
+
+    def __init__(self, *args, **kwargs):
+        super(SessionTimeout, self).__init__(*args, **kwargs)
+
+
+class SessionExpired(RuntimeError):
+    """ Session expired """
+
+    def __init__(self, *args, **kwargs):
+        super(SessionExpired, self).__init__(*args, **kwargs)
+
+
 class ReaderThread(threading.Thread):
     """ The reader thread
 
@@ -63,91 +77,98 @@ class ReaderThread(threading.Thread):
         self.read_timeout = read_timeout
 
     def run(self):
+        try:
+            while True:
+                try:
+                    header, input_archive = _read_header_and_body(self.s, self.read_timeout)
+                    if header.xid == -2:
+                        LOGGER.debug('Received PING')
+                        continue
+                    elif header.xid == -4:
+                        LOGGER.debug('Received AUTH')
+                        continue
+                    elif header.xid == -1:
+                        watcher_event = WatcherEvent(None, None, None)
+                        watcher_event.deserialize(input_archive, 'event')
 
-        while True:
-            try:
-                header, buffer = _read_header(self.s, self.read_timeout)
-                if header.xid == -2:
-                    LOGGER.debug('Received PING')
-                    continue
-                elif header.xid == -4:
-                    LOGGER.debug('Received AUTH')
-                    continue
-                elif header.xid == -1:
-                    watcher_event = WatcherEvent(None, None, None)
-                    watcher_event.deserialize(buffer, 'event')
+                        path = watcher_event.path
+                        watchers = set()
+                        with self.client._state_lock:
+                            if watcher_event.type == 1:
+                                LOGGER.debug('Received created event %s', path)
+                                watchers |= self.client._data_watchers.pop(path, set())
+                                watchers |= self.client._exists_watchers.pop(path, set())
+                                LOGGER.debug(' with %r', watchers)
 
-                    path = watcher_event.path
-                    watchers = set()
-                    with self.client._state_lock:
-                        if watcher_event.type == 1:
-                            LOGGER.debug('Received created event %s', path)
-                            watchers |= self.client._data_watchers.pop(path, set())
-                            watchers |= self.client._exists_watchers.pop(path, set())
-                            LOGGER.debug(' with %r', watchers)
+                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
+                            elif watcher_event.type == 2:
+                                LOGGER.debug('Received deleted event %s', path)
+                                watchers |= self.client._data_watchers.pop(path, set())
+                                watchers |= self.client._exists_watchers.pop(path, set())
+                                watchers |= self.client._child_watchers.pop(path, set())
+                                LOGGER.debug(' with %r', watchers)
 
-                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
-                        elif watcher_event.type == 2:
-                            LOGGER.debug('Received deleted event %s', path)
-                            watchers |= self.client._data_watchers.pop(path, set())
-                            watchers |= self.client._exists_watchers.pop(path, set())
-                            watchers |= self.client._child_watchers.pop(path, set())
-                            LOGGER.debug(' with %r', watchers)
+                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
+                            elif watcher_event.type == 3:
+                                LOGGER.debug('Received data changed event %s', path)
+                                watchers |= self.client._data_watchers.pop(path, set())
+                                watchers |= self.client._exists_watchers.pop(path, set())
+                                LOGGER.debug(' with %r', watchers)
 
-                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
-                        elif watcher_event.type == 3:
-                            LOGGER.debug('Received data changed event %s', path)
-                            watchers |= self.client._data_watchers.pop(path, set())
-                            watchers |= self.client._exists_watchers.pop(path, set())
-                            LOGGER.debug(' with %r', watchers)
+                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
+                            elif watcher_event.type == 4:
+                                LOGGER.debug('Received children changed event %s', path)
+                                watchers |= self.client._child_watchers.pop(path, set())
+                                LOGGER.debug(' with %r', watchers)
 
-                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
-                        elif watcher_event.type == 4:
-                            LOGGER.debug('Received children changed event %s', path)
-                            watchers |= self.client._child_watchers.pop(path, set())
-                            LOGGER.debug(' with %r', watchers)
+                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.children_changed(p)))
+                            else:
+                                LOGGER.warn('Received unknown event %r', watcher_event.type)
 
-                            self.client._events.put(_event_factory(path, watchers, lambda w, p: w.children_changed(p)))
-                        else:
-                            LOGGER.warn('Received unknown event %r', watcher_event.type)
-                            continue
+                    else:
+                        LOGGER.debug('Reading for header %r', header)
 
-                else:
-                    LOGGER.debug('Reading for header %r', header)
+                        with self.client._state_lock:
+                            request, response, callback, xid = self.client._pending.get()
 
-                    request, response, callback, xid = self.client._pending.get()
+                            if header.zxid and header.zxid > 0:
+                                self.client.last_zxid = header.zxid
+                            if header.xid != xid:
+                                raise RuntimeError('xids do not match, expected %r received %r', xid, header.xid)
 
-                    if header.zxid and header.zxid > 0:
-                        self.client.last_zxid = header.zxid
-                    if header.xid != xid:
-                        raise RuntimeError('xids do not match, expected %r received %r', xid, header.xid)
+                            callback_exception = None
+                            if header.err:
+                                callback_exception = EXCEPTIONS[header.err]()
+                                LOGGER.debug('Received error %r', callback_exception)
+                            elif response:
+                                response.deserialize(input_archive, 'response')
+                                LOGGER.debug('Received response: %r', response)
 
-                    callback_exception = None
-                    if header.err:
-                        callback_exception = EXCEPTIONS[header.err]()
-                        LOGGER.debug('Received error %r', callback_exception)
-                    elif response:
-                        response.deserialize(buffer, 'response')
-                        LOGGER.debug('Received response: %r', response)
+                            try:
+                                callback(callback_exception)
+                            except Exception as e:
+                                LOGGER.exception(e)
 
-                    try:
-                        callback(callback_exception)
-                    except Exception as e:
-                        LOGGER.exception(e)
+                            if isinstance(response, CloseResponse):
+                                LOGGER.debug('Read close response')
+                                self.s.close()
+                                break
 
-                    if isinstance(response, CloseResponse):
-                        LOGGER.debug('Read close response')
-                        self.s.close()
-                        self.reader_done.set()
-                        break
-            except ConnectionDropped:
-                LOGGER.debug('Connection dropped for reader')
-                break
-            except Exception as e:
-                LOGGER.exception(e)
-                break
-
-        LOGGER.debug('Reader stopped')
+                except ConnectionDropped:
+                    LOGGER.warning('Connection dropped for reader')
+                    raise
+                except SessionTimeout:
+                    LOGGER.warning('Session timeout for reader')
+                    self.s.close()
+                    raise
+                except Exception as e:
+                    LOGGER.exception(e)
+                    raise
+        except Exception:
+            pass
+        finally:
+            self.reader_done.set()
+            LOGGER.debug('Reader stopped')
 
 
 def _event_factory(path, watchers, callback):
@@ -199,29 +220,32 @@ class WriterThread(threading.Thread):
                             LOGGER.debug('Received close request, closing')
                             writer_done = True
 
-                        self.client._queue.get()
-                        self.client._pending.put((request, response, callback, xid))
+                        with self.client._state_lock:
+                            if self.client._queue.peek(block=False):
+                                request, response, callback = self.client._queue.get()
+                                self.client._pending.put((request, response, callback, xid))
                     except Empty:
                         LOGGER.debug('Queue timeout.  Sending PING')
                         _submit(s, PingRequest(), self.connect_timeout, -2)
-                    except Exception as e:
-                        LOGGER.exception(e)
-                        break
 
                 LOGGER.debug('Waiting for reader to read close response')
                 reader_done.wait()
                 LOGGER.info('Closing connection to %s:%s', host, port)
 
                 if writer_done:
-                    self.client._close(CLOSED)
+                    self.client._closed(CLOSED)
                     break
-            except ConnectionDropped:
-                LOGGER.warning('Connection dropped')
-                self.client._events.put(lambda: self.client._default_watcher.connection_dropped())
+            except (ConnectionDropped, SessionTimeout):
+                LOGGER.warning('Connection dropped or timed out')
+                self.client._disconnected()
                 time.sleep(random.random())
+            except SessionExpired:
+                LOGGER.warning('Session expired, closing')
+                self.client._closed(CLOSED, session_expired=True)
+                break
             except AuthFailedError:
-                LOGGER.warning('AUTH_FAILED closing')
-                self.client._close(AUTH_FAILED)
+                LOGGER.warning('Auth failed, closing')
+                self.client._closed(AUTH_FAILED)
                 break
             except Exception as e:
                 LOGGER.warning(e)
@@ -252,12 +276,12 @@ class WriterThread(threading.Thread):
                                          self.client.read_only)
         connection_response = ConnectResponse(None, None, None, None, None)
 
-        zxid = _invoke(s, self.client.session_timeout, connect_request, connection_response)
+        zxid = _invoke(s, self.client.connect_timeout, connect_request, connection_response)
 
         if connection_response.timeOut < 0:
             LOGGER.error('Session expired')
             self.client._events.put(lambda: self.client._default_watcher.session_expired(self.client.session_id))
-            raise RuntimeError('Session expired')
+            raise SessionExpired()
         else:
             if zxid: self.client.last_zxid = zxid
             self.client.session_id = connection_response.sessionId
@@ -270,14 +294,12 @@ class WriterThread(threading.Thread):
             LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
             LOGGER.debug('    connect timeout: %s', self.connect_timeout)
             LOGGER.debug('    read timeout: %s', self.read_timeout)
-            self.client._events.put(lambda: self.client._default_watcher.session_connected(self.client.session_id, self.client.session_passwd, self.client.read_only))
 
-        self.client._state = CONNECTED
-        connect_failures = 0
+        self.client._connected(connection_response.sessionId, connection_response.passwd, connection_response.readOnly)
 
         for scheme, auth in self.client.auth_data:
             ap = AuthPacket(0, scheme, auth)
-            zxid = _invoke(s, self.connect_timeout, ap, xid=-4)
+            zxid = _invoke(s, self.read_timeout, ap, xid=-4)
             if zxid: self.client.last_zxid = zxid
 
 
@@ -288,13 +310,14 @@ def _invoke(socket, timeout, request, response=None, xid=None):
     if request.type:
         oa.write_int(request.type, 'type')
     request.serialize(oa, 'NA')
-    socket.send(struct.pack('!i', len(oa.buffer)))
-    socket.send(oa.buffer)
 
-    msg = _read(socket, 4, timeout)
+    timeout = _write(socket, struct.pack('!i', len(oa.buffer)), timeout)
+    timeout = _write(socket, oa.buffer, timeout)
+
+    msg, timeout = _read(socket, 4, timeout)
     length = struct.unpack_from('!i', msg, 0)[0]
 
-    msg = _read(socket, length, timeout)
+    msg, _ = _read(socket, length, timeout)
     ia = InputArchive(msg)
 
     zxid = None
@@ -323,42 +346,65 @@ def _submit(socket, request, timeout, xid=None):
     if request.type:
         oa.write_int(request.type, 'type')
     request.serialize(oa, 'NA')
-    _write(socket, struct.pack('!i', len(oa.buffer)), timeout)
+
+    timeout = _write(socket, struct.pack('!i', len(oa.buffer)), timeout)
     _write(socket, oa.buffer, timeout)
 
 
 def _write(socket, buffer, timeout):
     sent = 0
     while sent < len(buffer):
+        if timeout <= 0:
+            raise SessionTimeout()
+        start = time.time()
+
         _, ready_to_write, _ = select.select([], [socket], [], timeout)
+        end = time.time()
+        timeout = timeout - (end - start)
+        if not ready_to_write:
+            raise SessionTimeout()
+
         count = ready_to_write[0].send(buffer[sent:])
         if not count:
-            raise ConnectionDropped('socket connection broken')
+            raise ConnectionDropped()
         sent += count
 
+        return timeout
 
-def _read_header(socket, timeout):
-    msg = _read(socket, 4, timeout)
+
+def _read_header_and_body(socket, timeout):
+    msg, timeout = _read(socket, 4, timeout)
+
     length = struct.unpack_from('!i', msg, 0)[0]
 
-    msg = _read(socket, length, timeout)
-    ia = InputArchive(msg)
+    msg, _ = _read(socket, length, timeout)
+    input_archive = InputArchive(msg)
 
     header = ReplyHeader(None, None, None)
-    header.deserialize(ia, 'header')
+    header.deserialize(input_archive, 'header')
 
-    return header, ia
+    return header, input_archive
 
 
 def _read(socket, length, timeout):
     msg = ''
     while len(msg) < length:
+        if timeout <= 0:
+            raise SessionTimeout()
+        start = time.time()
+
         ready_to_read, _, _ = select.select([socket], [], [], timeout)
+
+        end = time.time()
+        timeout = timeout - (end - start)
+        if not ready_to_read:
+            raise SessionTimeout()
+
         chunk = ready_to_read[0].recv(length - len(msg))
         if chunk == '':
-            raise ConnectionDropped('socket connection broken')
+            raise ConnectionDropped()
         msg = msg + chunk
-    return msg
+    return msg, timeout
 
 
 class PeekableQueue(Queue):
