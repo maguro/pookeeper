@@ -15,6 +15,7 @@
  under the License.
 """
 from collections import defaultdict
+import logging
 from posixpath import split
 
 from toolazydogs.pookeeper import packets
@@ -23,6 +24,8 @@ from toolazydogs.pookeeper.packets.data.Id import Id
 
 
 __version__ = '0.1.0-dev'
+
+LOGGER = logging.getLogger('toolazydogs.pookeeper')
 
 def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
     """ Create a ZooKeeper client object
@@ -140,6 +143,8 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
 
     handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
 
+    LOGGER.debug('Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s', hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+
     return handle
 
 
@@ -195,6 +200,8 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
 
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
 
+    LOGGER.debug('Allocated v3.3 client, %s, %s, %s, %s, %r, %s', hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
+
     return handle
 
 
@@ -211,6 +218,7 @@ def delete(client, path):
     for child in children:
         delete(client, path + '/' + child)
     client.delete(path, stat.version)
+    LOGGER.debug('Deleted %s', path)
 
 
 def create(client, path, ACL=None, code=None):
@@ -234,6 +242,7 @@ def create(client, path, ACL=None, code=None):
         create(client, parent, ACL, code)
     try:
         client.create(path, ACL, code)
+        LOGGER.debug('Created %s, ACL: %s, code %s', path, ACL, code)
     except NodeExistsError:
         pass
 
