@@ -14,21 +14,13 @@
  specific language governing permissions and limitations
  under the License.
 """
-import logging
 import random
 import time
-import uuid
 
 from pookeeper.harness import PookeeperTestCase
-from toolazydogs.zookeeper.zookeeper import create
 
 
 class  DataWatcherTests(PookeeperTestCase):
-#    def setUp(self):
-#        super(DataWatcherTests, self).setUp()
-#        self.path = "/" + uuid.uuid4().hex
-#        create(self.client, self.path)
-
     def test_ping(self):
         """ Make sure client connection is kept alive by behind the scenes pinging
         """
@@ -36,8 +28,6 @@ class  DataWatcherTests(PookeeperTestCase):
         time.sleep(5)
 
         self.client.get_children('/')
-
-
 
 
 def _random_data():
