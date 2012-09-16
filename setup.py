@@ -22,25 +22,33 @@ from codecs import open
 
 from toolazydogs.zookeeper import __version__
 
+
+install_requires = [    'mockito',
+                        'nose',
+                        ]
+tests_require = install_requires + [
+    'coverage',
+    'mockito',
+    'nose',
+    ]
+
 setup(
-    name = 'pookeeper',
-    version = __version__,
-    url = 'http://github.com/acabrera/pookeeper/',
-    license = 'Apache Software License (http://www.apache.org/licenses/LICENSE-2.0)',
-    author = 'Alan D. Cabrera',
-    author_email = 'adc@toolazydogs.com',
-    description = 'Pure Python bindings for Apache Zookeeper.',
+    name='pookeeper',
+    version=__version__,
+    url='http://github.com/acabrera/pookeeper/',
+    license='Apache Software License (http://www.apache.org/licenses/LICENSE-2.0)',
+    author='Alan D. Cabrera',
+    author_email='adc@toolazydogs.com',
+    description='Pure Python bindings for Apache Zookeeper.',
     # don't ever depend on refcounting to close files anywhere else
-    long_description = open('README.rst', encoding='utf-8').read(),
-    packages = find_packages(exclude=['examples', 'tests']),
-    zip_safe = False,
-    platforms = 'any',
-    test_suite = 'nose.collector',
-    install_requires = [
-        'mockito>=0.5.0',
-        'nose>=1.0.0',
-    ],
-    classifiers = [
+    long_description=open('README.rst', encoding='utf-8').read(),
+    packages=find_packages(exclude=['examples', 'tests']),
+    zip_safe=False,
+    platforms='any',
+    test_suite='pookeeper',
+    install_requires=install_requires,
+    tests_require=tests_require,
+    classifiers=[
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: OS Independent',

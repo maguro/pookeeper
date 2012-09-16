@@ -17,10 +17,11 @@
 from Queue import Queue
 from collections import defaultdict
 import logging
+from posixpath import split
 import socket
 import threading
 
-from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO
+from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO, NodeExistsError, Persistent, CREATOR_ALL_ACL
 from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import WriterThread, PeekableQueue
@@ -79,7 +80,7 @@ class Client33(object):
         self._exists_watchers = defaultdict(set)
         self._default_watcher = watcher or Watcher()
 
-        self._state = CONNECTING
+        self.state = CONNECTING
         self._state_lock = threading.RLock()
 
         self._event_thread_completed = threading.Event()
@@ -118,9 +119,9 @@ class Client33(object):
         will be triggered.
         """
         with self._state_lock:
-            if self._state == AUTH_FAILED:
+            if self.state == AUTH_FAILED:
                 return
-            if self._state == CLOSED:
+            if self.state == CLOSED:
                 return
 
             call_exception = None
@@ -508,27 +509,27 @@ class Client33(object):
 
     def _check_state(self):
         with self._state_lock:
-            if self._state == AUTH_FAILED:
+            if self.state == AUTH_FAILED:
                 raise AuthFailedError()
-            if self._state == CLOSED:
+            if self.state == CLOSED:
                 raise SessionExpiredError()
 
     def _connected(self, session_id, session_passwd, read_only):
         with self._state_lock:
             LOGGER.debug('Connected %s', 'read-only mode' if read_only else '')
 
-            self._state = CONNECTED_RO if read_only else CONNECTED
+            self.state = CONNECTED_RO if read_only else CONNECTED
             self._events.put(lambda: self._default_watcher.session_connected(session_id, session_passwd, read_only))
 
     def _disconnected(self):
-        assert self._state in set([CONNECTING, CONNECTED, CONNECTED_RO])
+        assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO])
         with self._state_lock:
-            if self._state == CONNECTING: return
+            if self.state == CONNECTING: return
 
-            LOGGER.debug('Disconnected %s %s pending calls', self._state, self._pending.qsize())
-            LOGGER.debug('        %s %s queued calls', ' ' * len(str(self._state)), self._queue.qsize())
+            LOGGER.debug('Disconnected %s %s pending calls', self.state, self._pending.qsize())
+            LOGGER.debug('        %s %s queued calls', ' ' * len(str(self.state)), self._queue.qsize())
 
-            self._state = CONNECTING
+            self.state = CONNECTING
 
             self._events.put(lambda: self._default_watcher.connection_dropped())
 
@@ -540,7 +541,7 @@ class Client33(object):
         """
         assert state in set([CLOSED, AUTH_FAILED])
         with self._state_lock:
-            self._state = state
+            self.state = state
 
             LOGGER.debug('CLOSING %s %s pending calls', state, self._pending.qsize())
             LOGGER.debug('        %s %s queued calls', ' ' * len(str(state)), self._queue.qsize())
@@ -657,6 +658,32 @@ class _Transaction(object):
             LOGGER.debug('Added %r to %r', request, self)
             self.operations.append(request)
             self.post_processors.append(post_processor if post_processor else lambda x: x)
+
+
+def delete(client, path):
+    if not client.exists(path): return
+
+    children, stat = client.get_children(path)
+    for child in children:
+        delete(client, path + '/' + child)
+    client.delete(path, stat.version)
+
+
+def create(client, path, ACL=None, code=None):
+    if client.exists(path):
+        return
+
+    ACL = ACL or CREATOR_ALL_ACL
+    code = code or Persistent()
+
+    parent, node = split(path)
+
+    if node:
+        create(client, parent, ACL, code)
+    try:
+        client.create(path, ACL, code)
+    except NodeExistsError:
+        pass
 
 
 def _prefix_root(root, path):
