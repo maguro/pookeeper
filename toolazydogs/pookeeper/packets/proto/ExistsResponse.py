@@ -16,30 +16,32 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.zookeeper.packets.proto.MultiHeader import MultiHeader
+from toolazydogs.pookeeper.packets.data.Stat import Stat
 
 
-class TransactionRequest:
-    def __init__(self, operations):
-        self.type = 14
-        self.operations = operations
+class ExistsResponse:
+    def __init__(self, stat):
+        self.stat = stat
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        for operation in self.operations:
-            MultiHeader(operation.type, False, -1).serialize(output_archive, tag)
-            operation.serialize(output_archive, tag)
-        MultiHeader(-1, True, -1).serialize(output_archive, tag)
+        output_archive.write_record(self.stat, 'stat')
         output_archive.end_record(tag)
 
+    def deserialize(self, input_archive, tag):
+        input_archive.start_record(tag)
+        self.stat = Stat(None, None, None, None, None, None, None, None, None, None, None)
+        input_archive.read_record(self.stat, 'stat')
+        input_archive.end_record(tag)
+
     def __repr__(self):
-        return 'TransactionRequest(%r)' % (self.operations)
+        return 'ExistsResponse(%r)' % (self.stat)
 
     def __eq__(self, other):
-        return self.operations == other.operations
+        return self.stat == other.stat
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.operations))
+        return hash((self.stat))

@@ -16,10 +16,10 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.zookeeper.packets.data.Stat import Stat
+from toolazydogs.pookeeper.packets.data.Stat import Stat
 
 
-class ExistsResponse:
+class SetDataResponse:
     def __init__(self, stat):
         self.stat = stat
 
@@ -35,7 +35,7 @@ class ExistsResponse:
         input_archive.end_record(tag)
 
     def __repr__(self):
-        return 'ExistsResponse(%r)' % (self.stat)
+        return 'SetDataResponse(%r)' % (self.stat)
 
     def __eq__(self, other):
         return self.stat == other.stat

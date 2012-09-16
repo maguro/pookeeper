@@ -9,8 +9,8 @@ import threading
 import unittest
 
 from pookeeper.common import ZookeeperCluster
-from toolazydogs import zookeeper
-from toolazydogs.zookeeper import CONNECTED, Watcher, SessionExpiredError
+from toolazydogs import pookeeper
+from toolazydogs.pookeeper import CONNECTED, Watcher, SessionExpiredError
 
 
 log = logging.getLogger(__name__)
@@ -77,10 +77,10 @@ class PookeeperTestHarness(object):
         return ",".join([s.address for s in self.cluster])
 
     def _get_nonchroot_client(self):
-        return zookeeper.allocate(self.servers)
+        return pookeeper.allocate(self.servers)
 
     def _get_client(self, **kwargs):
-        return zookeeper.allocate(self.hosts, **kwargs)
+        return pookeeper.allocate(self.hosts, **kwargs)
 
     def expire_session(self, session_id=None):
         """Force ZK to expire a client session
@@ -91,7 +91,7 @@ class PookeeperTestHarness(object):
         """
         session_id = session_id or self.client.session_id
 
-        client = zookeeper.allocate(self.hosts, session_id=session_id, session_timeout=0.8)
+        client = pookeeper.allocate(self.hosts, session_id=session_id, session_timeout=0.8)
         client.close()
         lost = threading.Event()
         try:
@@ -112,7 +112,7 @@ class PookeeperTestHarness(object):
         self.hosts = self.servers + namespace
 
         self.client = self._get_client(session_timeout=0.8)
-        zookeeper.create(self.client, '/')
+        pookeeper.create(self.client, '/')
 
     def teardown_zookeeper(self):
         """Clean up any ZNodes created during the test
@@ -121,12 +121,12 @@ class PookeeperTestHarness(object):
             self.cluster.start()
 
         if self.client.state == CONNECTED:
-            zookeeper.delete(self.client, '/')
+            pookeeper.delete(self.client, '/')
             self.client.close()
             del self.client
         else:
             client = self._get_client()
-            zookeeper.delete(client, '/')
+            pookeeper.delete(client, '/')
             client.close()
 
 

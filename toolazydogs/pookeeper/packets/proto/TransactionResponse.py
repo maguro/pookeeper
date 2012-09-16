@@ -16,15 +16,15 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.zookeeper import EXCEPTIONS
-from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
-from toolazydogs.zookeeper.packets.proto.CreateRequest import CreateRequest
-from toolazydogs.zookeeper.packets.proto.CreateResponse import CreateResponse
-from toolazydogs.zookeeper.packets.proto.DeleteRequest import DeleteRequest
-from toolazydogs.zookeeper.packets.proto.ErrorResponse import ErrorResponse
-from toolazydogs.zookeeper.packets.proto.MultiHeader import MultiHeader
-from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
-from toolazydogs.zookeeper.packets.proto.SetDataResponse import SetDataResponse
+from toolazydogs.pookeeper import EXCEPTIONS
+from toolazydogs.pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
+from toolazydogs.pookeeper.packets.proto.CreateRequest import CreateRequest
+from toolazydogs.pookeeper.packets.proto.CreateResponse import CreateResponse
+from toolazydogs.pookeeper.packets.proto.DeleteRequest import DeleteRequest
+from toolazydogs.pookeeper.packets.proto.ErrorResponse import ErrorResponse
+from toolazydogs.pookeeper.packets.proto.MultiHeader import MultiHeader
+from toolazydogs.pookeeper.packets.proto.SetDataRequest import SetDataRequest
+from toolazydogs.pookeeper.packets.proto.SetDataResponse import SetDataResponse
 
 
 class TransactionResponse:
@@ -32,7 +32,7 @@ class TransactionResponse:
         self.results = results
 
     def deserialize(self, input_archive, tag):
-        from toolazydogs.zookeeper.zookeeper import LOGGER
+        from toolazydogs.pookeeper.zookeeper import LOGGER
         input_archive.start_record(tag)
         self.results = []
         header = MultiHeader(None, None, None)

@@ -16,49 +16,35 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.zookeeper.packets.data.ACL import ACL
-from toolazydogs.zookeeper.packets.data.Stat import Stat
+from toolazydogs.pookeeper.packets.data.Stat import Stat
 
 
-class GetACLResponse:
-    def __init__(self, acl, stat):
-        self.acl = acl
+class GetDataResponse:
+    def __init__(self, data, stat):
+        self.data = data
         self.stat = stat
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        output_archive.start_vector(self.acl, 'acl')
-        if self.acl != None:
-            for e1 in self.acl:
-                output_archive.write_record(e1, 'e1')
-        output_archive.end_vector(self.acl, 'acl')
+        output_archive.write_buffer(self.data, 'data')
         output_archive.write_record(self.stat, 'stat')
         output_archive.end_record(tag)
 
     def deserialize(self, input_archive, tag):
         input_archive.start_record(tag)
-        len1 = input_archive.start_vector('acl')
-        if len1 != None:
-            self.acl = []
-            for vidx1 in range(len1):
-                e1 = ACL(None, None)
-                input_archive.read_record(e1, 'e1')
-                self.acl.append(e1)
-        else:
-            self.acl = None
-        input_archive.end_vector('acl')
+        self.data = input_archive.read_buffer('data')
         self.stat = Stat(None, None, None, None, None, None, None, None, None, None, None)
         input_archive.read_record(self.stat, 'stat')
         input_archive.end_record(tag)
 
     def __repr__(self):
-        return 'GetACLResponse(%r, %r)' % (self.acl, self.stat)
+        return 'GetDataResponse(%r, %r)' % (self.data, self.stat)
 
     def __eq__(self, other):
-        return self.acl == other.acl and self.stat == other.stat
+        return self.data == other.data and self.stat == other.stat
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.acl, self.stat))
+        return hash((self.data, self.stat))

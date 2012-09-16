@@ -16,30 +16,27 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.zookeeper.packets.data.ACL import ACL
+from toolazydogs.pookeeper.packets.data.ACL import ACL
+from toolazydogs.pookeeper.packets.data.Stat import Stat
 
 
-class SetACLRequest:
-    def __init__(self, path, acl, version):
-        self.type = 7
-        self.path = path
+class GetACLResponse:
+    def __init__(self, acl, stat):
         self.acl = acl
-        self.version = version
+        self.stat = stat
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        output_archive.write_string(self.path, 'path')
         output_archive.start_vector(self.acl, 'acl')
         if self.acl != None:
             for e1 in self.acl:
                 output_archive.write_record(e1, 'e1')
         output_archive.end_vector(self.acl, 'acl')
-        output_archive.write_int(self.version, 'version')
+        output_archive.write_record(self.stat, 'stat')
         output_archive.end_record(tag)
 
     def deserialize(self, input_archive, tag):
         input_archive.start_record(tag)
-        self.path = input_archive.read_string('path')
         len1 = input_archive.start_vector('acl')
         if len1 != None:
             self.acl = []
@@ -50,17 +47,18 @@ class SetACLRequest:
         else:
             self.acl = None
         input_archive.end_vector('acl')
-        self.version = input_archive.read_int('version')
+        self.stat = Stat(None, None, None, None, None, None, None, None, None, None, None)
+        input_archive.read_record(self.stat, 'stat')
         input_archive.end_record(tag)
 
     def __repr__(self):
-        return 'SetACLRequest(%r, %r, %r)' % (self.path, self.acl, self.version)
+        return 'GetACLResponse(%r, %r)' % (self.acl, self.stat)
 
     def __eq__(self, other):
-        return self.path == other.path and self.acl == other.acl and self.version == other.version
+        return self.acl == other.acl and self.stat == other.stat
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.path, self.acl, self.version))
+        return hash((self.acl, self.stat))

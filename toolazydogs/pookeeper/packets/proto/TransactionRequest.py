@@ -16,35 +16,30 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.zookeeper.packets.data.Id import Id
+from toolazydogs.pookeeper.packets.proto.MultiHeader import MultiHeader
 
 
-class ACL:
-    def __init__(self, perms, id):
-        self.perms = perms
-        self.id = id
+class TransactionRequest:
+    def __init__(self, operations):
+        self.type = 14
+        self.operations = operations
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        output_archive.write_int(self.perms, 'perms')
-        output_archive.write_record(self.id, 'id')
+        for operation in self.operations:
+            MultiHeader(operation.type, False, -1).serialize(output_archive, tag)
+            operation.serialize(output_archive, tag)
+        MultiHeader(-1, True, -1).serialize(output_archive, tag)
         output_archive.end_record(tag)
 
-    def deserialize(self, input_archive, tag):
-        input_archive.start_record(tag)
-        self.perms = input_archive.read_int('perms')
-        self.id = Id(None, None)
-        input_archive.read_record(self.id, 'id')
-        input_archive.end_record(tag)
-
     def __repr__(self):
-        return 'ACL(%r, %r)' % (self.perms, self.id)
+        return 'TransactionRequest(%r)' % (self.operations)
 
     def __eq__(self, other):
-        return self.perms == other.perms and self.id == other.id
+        return self.operations == other.operations
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.perms, self.id))
+        return hash((self.operations))

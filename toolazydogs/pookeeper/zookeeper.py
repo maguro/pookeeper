@@ -20,35 +20,35 @@ import logging
 import socket
 import threading
 
-from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO
-from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
-from toolazydogs.zookeeper.hosts import collect_hosts
-from toolazydogs.zookeeper.impl import WriterThread, PeekableQueue
-from toolazydogs.zookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
-from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
-from toolazydogs.zookeeper.packets.proto.CloseResponse import CloseResponse
-from toolazydogs.zookeeper.packets.proto.CreateRequest import CreateRequest
-from toolazydogs.zookeeper.packets.proto.CreateResponse import CreateResponse
-from toolazydogs.zookeeper.packets.proto.DeleteRequest import DeleteRequest
-from toolazydogs.zookeeper.packets.proto.ExistsRequest import ExistsRequest
-from toolazydogs.zookeeper.packets.proto.ExistsResponse import ExistsResponse
-from toolazydogs.zookeeper.packets.proto.GetACLRequest import GetACLRequest
-from toolazydogs.zookeeper.packets.proto.GetACLResponse import GetACLResponse
-from toolazydogs.zookeeper.packets.proto.GetChildren2Request import GetChildren2Request
-from toolazydogs.zookeeper.packets.proto.GetChildren2Response import GetChildren2Response
-from toolazydogs.zookeeper.packets.proto.GetDataRequest import GetDataRequest
-from toolazydogs.zookeeper.packets.proto.GetDataResponse import GetDataResponse
-from toolazydogs.zookeeper.packets.proto.SetACLRequest import SetACLRequest
-from toolazydogs.zookeeper.packets.proto.SetACLResponse import SetACLResponse
-from toolazydogs.zookeeper.packets.proto.SetDataRequest import SetDataRequest
-from toolazydogs.zookeeper.packets.proto.SetDataResponse import SetDataResponse
-from toolazydogs.zookeeper.packets.proto.SyncRequest import SyncRequest
-from toolazydogs.zookeeper.packets.proto.SyncResponse import SyncResponse
-from toolazydogs.zookeeper.packets.proto.TransactionRequest import TransactionRequest
-from toolazydogs.zookeeper.packets.proto.TransactionResponse import TransactionResponse
+from toolazydogs.pookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO
+from toolazydogs.pookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
+from toolazydogs.pookeeper.hosts import collect_hosts
+from toolazydogs.pookeeper.impl import WriterThread, PeekableQueue
+from toolazydogs.pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
+from toolazydogs.pookeeper.packets.proto.CloseRequest import CloseRequest
+from toolazydogs.pookeeper.packets.proto.CloseResponse import CloseResponse
+from toolazydogs.pookeeper.packets.proto.CreateRequest import CreateRequest
+from toolazydogs.pookeeper.packets.proto.CreateResponse import CreateResponse
+from toolazydogs.pookeeper.packets.proto.DeleteRequest import DeleteRequest
+from toolazydogs.pookeeper.packets.proto.ExistsRequest import ExistsRequest
+from toolazydogs.pookeeper.packets.proto.ExistsResponse import ExistsResponse
+from toolazydogs.pookeeper.packets.proto.GetACLRequest import GetACLRequest
+from toolazydogs.pookeeper.packets.proto.GetACLResponse import GetACLResponse
+from toolazydogs.pookeeper.packets.proto.GetChildren2Request import GetChildren2Request
+from toolazydogs.pookeeper.packets.proto.GetChildren2Response import GetChildren2Response
+from toolazydogs.pookeeper.packets.proto.GetDataRequest import GetDataRequest
+from toolazydogs.pookeeper.packets.proto.GetDataResponse import GetDataResponse
+from toolazydogs.pookeeper.packets.proto.SetACLRequest import SetACLRequest
+from toolazydogs.pookeeper.packets.proto.SetACLResponse import SetACLResponse
+from toolazydogs.pookeeper.packets.proto.SetDataRequest import SetDataRequest
+from toolazydogs.pookeeper.packets.proto.SetDataResponse import SetDataResponse
+from toolazydogs.pookeeper.packets.proto.SyncRequest import SyncRequest
+from toolazydogs.pookeeper.packets.proto.SyncResponse import SyncResponse
+from toolazydogs.pookeeper.packets.proto.TransactionRequest import TransactionRequest
+from toolazydogs.pookeeper.packets.proto.TransactionResponse import TransactionResponse
 
 
-LOGGER = logging.getLogger('toolazydogs.zookeeper')
+LOGGER = logging.getLogger('toolazydogs.pookeeper')
 
 class Client33(object):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None):

@@ -17,9 +17,9 @@
 from collections import defaultdict
 from posixpath import split
 
-from toolazydogs.zookeeper import packets
-from toolazydogs.zookeeper.packets.data.ACL import ACL
-from toolazydogs.zookeeper.packets.data.Id import Id
+from toolazydogs.pookeeper import packets
+from toolazydogs.pookeeper.packets.data.ACL import ACL
+from toolazydogs.pookeeper.packets.data.Id import Id
 
 
 __version__ = '0.1.0-dev'
@@ -135,7 +135,7 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
             also be notified for node events
 
     """
-    from toolazydogs.zookeeper.zookeeper import Client34
+    from toolazydogs.pookeeper.zookeeper import Client34
 
 
     handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
@@ -190,7 +190,7 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
             also be notified for node events
 
     """
-    from toolazydogs.zookeeper.zookeeper import Client33
+    from toolazydogs.pookeeper.zookeeper import Client33
 
 
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher)

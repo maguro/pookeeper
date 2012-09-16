@@ -24,19 +24,19 @@ import threading
 import time
 from time import time as _time
 
-from toolazydogs.zookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED
-from toolazydogs.zookeeper.archive import OutputArchive, InputArchive
-from toolazydogs.zookeeper.packets.proto.AuthPacket import AuthPacket
-from toolazydogs.zookeeper.packets.proto.CloseRequest import CloseRequest
-from toolazydogs.zookeeper.packets.proto.CloseResponse import CloseResponse
-from toolazydogs.zookeeper.packets.proto.ConnectRequest import ConnectRequest
-from toolazydogs.zookeeper.packets.proto.ConnectResponse import ConnectResponse
-from toolazydogs.zookeeper.packets.proto.PingRequest import PingRequest
-from toolazydogs.zookeeper.packets.proto.ReplyHeader import ReplyHeader
-from toolazydogs.zookeeper.packets.proto.WatcherEvent import WatcherEvent
+from toolazydogs.pookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED
+from toolazydogs.pookeeper.archive import OutputArchive, InputArchive
+from toolazydogs.pookeeper.packets.proto.AuthPacket import AuthPacket
+from toolazydogs.pookeeper.packets.proto.CloseRequest import CloseRequest
+from toolazydogs.pookeeper.packets.proto.CloseResponse import CloseResponse
+from toolazydogs.pookeeper.packets.proto.ConnectRequest import ConnectRequest
+from toolazydogs.pookeeper.packets.proto.ConnectResponse import ConnectResponse
+from toolazydogs.pookeeper.packets.proto.PingRequest import PingRequest
+from toolazydogs.pookeeper.packets.proto.ReplyHeader import ReplyHeader
+from toolazydogs.pookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
-LOGGER = logging.getLogger('toolazydogs.zookeeper.protocol')
+LOGGER = logging.getLogger('toolazydogs.pookeeper.protocol')
 
 
 class ConnectionDropped(RuntimeError):
