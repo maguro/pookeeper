@@ -17,11 +17,10 @@
 from Queue import Queue
 from collections import defaultdict
 import logging
-from posixpath import split
 import socket
 import threading
 
-from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO, NodeExistsError, Persistent, CREATOR_ALL_ACL
+from toolazydogs.zookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO
 from toolazydogs.zookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.zookeeper.hosts import collect_hosts
 from toolazydogs.zookeeper.impl import WriterThread, PeekableQueue
@@ -658,32 +657,6 @@ class _Transaction(object):
             LOGGER.debug('Added %r to %r', request, self)
             self.operations.append(request)
             self.post_processors.append(post_processor if post_processor else lambda x: x)
-
-
-def delete(client, path):
-    if not client.exists(path): return
-
-    children, stat = client.get_children(path)
-    for child in children:
-        delete(client, path + '/' + child)
-    client.delete(path, stat.version)
-
-
-def create(client, path, ACL=None, code=None):
-    if client.exists(path):
-        return
-
-    ACL = ACL or CREATOR_ALL_ACL
-    code = code or Persistent()
-
-    parent, node = split(path)
-
-    if node:
-        create(client, parent, ACL, code)
-    try:
-        client.create(path, ACL, code)
-    except NodeExistsError:
-        pass
 
 
 def _prefix_root(root, path):

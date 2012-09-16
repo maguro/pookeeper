@@ -11,7 +11,6 @@ import unittest
 from pookeeper.common import ZookeeperCluster
 from toolazydogs import zookeeper
 from toolazydogs.zookeeper import CONNECTED, Watcher, SessionExpiredError
-from toolazydogs.zookeeper.zookeeper import delete, create
 
 
 log = logging.getLogger(__name__)
@@ -113,7 +112,7 @@ class PookeeperTestHarness(object):
         self.hosts = self.servers + namespace
 
         self.client = self._get_client(session_timeout=0.8)
-        create(self.client, '/')
+        zookeeper.create(self.client, '/')
 
     def teardown_zookeeper(self):
         """Clean up any ZNodes created during the test
@@ -122,12 +121,12 @@ class PookeeperTestHarness(object):
             self.cluster.start()
 
         if self.client.state == CONNECTED:
-            delete(self.client, '/')
+            zookeeper.delete(self.client, '/')
             self.client.close()
             del self.client
         else:
             client = self._get_client()
-            delete(client, '/')
+            zookeeper.delete(client, '/')
             client.close()
 
 

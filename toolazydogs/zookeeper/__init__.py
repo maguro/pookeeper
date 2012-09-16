@@ -15,6 +15,7 @@
  under the License.
 """
 from collections import defaultdict
+from posixpath import split
 
 from toolazydogs.zookeeper import packets
 from toolazydogs.zookeeper.packets.data.ACL import ACL
@@ -195,6 +196,46 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
 
     return handle
+
+
+def delete(client, path):
+    """ Recursively delete a path
+
+    Args:
+        client: Pookeeper client
+        path: the path to recursively delete
+    """
+    if not client.exists(path): return
+
+    children, stat = client.get_children(path)
+    for child in children:
+        delete(client, path + '/' + child)
+    client.delete(path, stat.version)
+
+
+def create(client, path, ACL=None, code=None):
+    """ Recursively create a path, creating intermediate nodes as required.
+
+    Args:
+        client: Pookeeper client
+        path: the path to recursively create
+        ACL: ACL to use for new node creation, default is CREATOR_ALL_ACL
+        code: the type of the new nodes that are created, default is Persistent
+    """
+    if client.exists(path):
+        return
+
+    ACL = ACL or CREATOR_ALL_ACL
+    code = code or Persistent()
+
+    parent, node = split(path)
+
+    if node:
+        create(client, parent, ACL, code)
+    try:
+        client.create(path, ACL, code)
+    except NodeExistsError:
+        pass
 
 
 class Watcher(object):
