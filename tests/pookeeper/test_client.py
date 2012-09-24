@@ -18,9 +18,11 @@ import random
 import time
 
 from pookeeper.harness import PookeeperTestCase
+from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError
+from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
-class  DataWatcherTests(PookeeperTestCase):
+class  SessionTests(PookeeperTestCase):
     def test_ping(self):
         """ Make sure client connection is kept alive by behind the scenes pinging
         """
@@ -28,6 +30,39 @@ class  DataWatcherTests(PookeeperTestCase):
         time.sleep(5)
 
         self.client.get_children('/')
+
+
+    def test_session_resumption(self):
+        """ Test session reconnect
+
+        disconnect the client by killing the socket, not sending the session
+        disconnect to the server as usual. This allows the test to verify
+        disconnect handling
+        """
+        self.client.create('/e', CREATOR_ALL_ACL, Ephemeral())
+        self.client._drop()
+
+        try:
+            self.client.exists('/e')
+            assert False, 'Connection dropped for test'
+        except ConnectionDroppedForTest:
+            pass
+
+        self.client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
+        stat = self.client.exists('/e')
+        assert stat is not None
+
+        self.client.close()
+
+        try:
+            self.client.exists('/e')
+            assert False, 'Should have raised SessionExpiredError'
+        except SessionExpiredError:
+            pass
+
+        self.client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
+        stat = self.client.exists('/e')
+        assert stat is None
 
 
 def _random_data():

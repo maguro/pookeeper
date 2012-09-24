@@ -60,6 +60,13 @@ class SessionExpired(RuntimeError):
         super(SessionExpired, self).__init__(*args, **kwargs)
 
 
+class ConnectionDroppedForTest(RuntimeError):
+    """ Socket dropped for testing """
+
+    def __init__(self, *args, **kwargs):
+        super(ConnectionDroppedForTest, self).__init__(*args, **kwargs)
+
+
 class ReaderThread(threading.Thread):
     """ The reader thread
 
@@ -193,40 +200,42 @@ class WriterThread(threading.Thread):
         writer_done = False
 
         for host, port in self.client.hosts:
-            s = self.client._allocate_socket()
+            self.socket = self.client._allocate_socket()
 
             self.client._state = CONNECTING
 
             try:
-                self._connect(s, host, port)
+                self._connect(self.socket, host, port)
 
                 reader_done = threading.Event()
 
-                reader_thread = ReaderThread(self.client, s, reader_done, self.read_timeout)
+                reader_thread = ReaderThread(self.client, self.socket, reader_done, self.read_timeout)
                 reader_thread.start()
 
                 xid = 0
                 while not writer_done:
                     try:
-                        request, response, callback = self.client._queue.peek(True, self.read_timeout / 2000.0)
+                        request, _, _ = self.client._queue.peek(True, self.read_timeout / 2000.0)
                         LOGGER.debug('Sending %r', request)
 
                         xid += 1
                         LOGGER.debug('xid: %r', xid)
 
-                        _submit(s, request, self.connect_timeout, xid)
+                        _submit(self.socket, request, self.connect_timeout, xid)
 
                         if isinstance(request, CloseRequest):
                             LOGGER.debug('Received close request, closing')
                             writer_done = True
 
+                        # We've successfully sent the packet.  Now we transfer
+                        # it to the queue of pending results.
                         with self.client._state_lock:
                             if self.client._queue.peek(block=False):
                                 request, response, callback = self.client._queue.get()
                                 self.client._pending.put((request, response, callback, xid))
                     except Empty:
                         LOGGER.debug('Queue timeout.  Sending PING')
-                        _submit(s, PingRequest(), self.connect_timeout, -2)
+                        _submit(self.socket, PingRequest(), self.connect_timeout, -2)
 
                 LOGGER.debug('Waiting for reader to read close response')
                 reader_done.wait()
@@ -249,13 +258,14 @@ class WriterThread(threading.Thread):
                 break
             except Exception as e:
                 LOGGER.warning(e)
+                self.client._disconnected()
                 time.sleep(random.random())
             finally:
                 if not writer_done:
                     # The read thread will close the socket since there
                     # could be a number of pending requests whose response
                     # still needs to be read from the socket.
-                    s.close()
+                    self.socket.close()
 
         LOGGER.debug('Writer stopped')
 

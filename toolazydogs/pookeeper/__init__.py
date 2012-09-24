@@ -318,11 +318,17 @@ class Closed(State):
     def __init__(self):
         super(Closed, self).__init__('CLOSED', 'Closed')
 
+
+class CONNECTION_DROPPED_FOR_TEST(State):
+    def __init__(self):
+        super(CONNECTION_DROPPED_FOR_TEST, self).__init__('CONNECTION_DROPPED_FOR_TEST', 'Dropped connection for testing')
+
 CONNECTING = Connecting()
 CONNECTED = Connected()
 CONNECTED_RO = ConnectedRO()
 AUTH_FAILED = AuthFailed()
 CLOSED = Closed()
+CONNECTION_DROPPED_FOR_TEST = CONNECTION_DROPPED_FOR_TEST()
 
 CREATE_CODES = {}
 

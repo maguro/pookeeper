@@ -20,10 +20,10 @@ import logging
 import socket
 import threading
 
-from toolazydogs.pookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO
+from toolazydogs.pookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST
 from toolazydogs.pookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
 from toolazydogs.pookeeper.hosts import collect_hosts
-from toolazydogs.pookeeper.impl import WriterThread, PeekableQueue
+from toolazydogs.pookeeper.impl import WriterThread, PeekableQueue, ConnectionDroppedForTest
 from toolazydogs.pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from toolazydogs.pookeeper.packets.proto.CloseRequest import CloseRequest
 from toolazydogs.pookeeper.packets.proto.CloseResponse import CloseResponse
@@ -103,9 +103,9 @@ class Client33(object):
         self._event_thread.daemon = True
         self._event_thread.start()
 
-        writer_thread = WriterThread(self)
-        writer_thread.setDaemon(True)
-        writer_thread.start()
+        self._writer_thread = WriterThread(self)
+        self._writer_thread.setDaemon(True)
+        self._writer_thread.start()
 
         self._check_state()
 
@@ -512,6 +512,8 @@ class Client33(object):
                 raise AuthFailedError()
             if self.state == CLOSED:
                 raise SessionExpiredError()
+            if self.state == CONNECTION_DROPPED_FOR_TEST:
+                raise ConnectionDroppedForTest()
 
     def _connected(self, session_id, session_passwd, read_only):
         with self._state_lock:
@@ -521,9 +523,9 @@ class Client33(object):
             self._events.put(lambda: self._default_watcher.session_connected(session_id, session_passwd, read_only))
 
     def _disconnected(self):
-        assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO])
+        assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST])
         with self._state_lock:
-            if self.state == CONNECTING: return
+            if self.state in set([CONNECTING, CONNECTION_DROPPED_FOR_TEST]): return
 
             LOGGER.debug('Disconnected %s %s pending calls', self.state, self._pending.qsize())
             LOGGER.debug('        %s %s queued calls', ' ' * len(str(self.state)), self._queue.qsize())
@@ -538,7 +540,7 @@ class Client33(object):
     def _closed(self, state, session_expired=False):
         """ The party is over.  Time to clean up
         """
-        assert state in set([CLOSED, AUTH_FAILED])
+        assert state in set([CLOSED, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST])
         with self._state_lock:
             self.state = state
 
@@ -575,6 +577,12 @@ class Client33(object):
         while not self._queue.empty():
             _, _, callback = self._queue.get()
             callback(error)
+
+    def _drop(self):
+        assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST])
+        with self._state_lock:
+            self._closed(CONNECTION_DROPPED_FOR_TEST)
+            self._writer_thread.socket.close()
 
 
 class Client34(Client33):
