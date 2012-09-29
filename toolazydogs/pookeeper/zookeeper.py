@@ -578,12 +578,6 @@ class Client33(object):
             _, _, callback = self._queue.get()
             callback(error)
 
-    def _drop(self):
-        assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST])
-        with self._state_lock:
-            self._closed(CONNECTION_DROPPED_FOR_TEST)
-            self._writer_thread.socket.close()
-
 
 class Client34(Client33):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):

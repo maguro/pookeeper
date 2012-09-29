@@ -1,4 +1,18 @@
 """ Pookeeper testing harnesses
+ Copyright 2012 the original author or authors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
 """
 
 import atexit
@@ -7,6 +21,7 @@ import os
 import uuid
 import threading
 import unittest
+from pookeeper import DropableClient34
 
 from pookeeper.common import ZookeeperCluster
 from toolazydogs import pookeeper
@@ -77,10 +92,10 @@ class PookeeperTestHarness(object):
         return ",".join([s.address for s in self.cluster])
 
     def _get_nonchroot_client(self):
-        return pookeeper.allocate(self.servers)
+        return DropableClient34(self.servers)
 
     def _get_client(self, **kwargs):
-        return pookeeper.allocate(self.hosts, **kwargs)
+        return DropableClient34(self.hosts, **kwargs)
 
     def expire_session(self, session_id=None):
         """Force ZK to expire a client session
@@ -91,7 +106,7 @@ class PookeeperTestHarness(object):
         """
         session_id = session_id or self.client.session_id
 
-        client = pookeeper.allocate(self.hosts, session_id=session_id, session_timeout=0.8)
+        client = DropableClient34(self.hosts, session_id=session_id, session_timeout=0.8)
         client.close()
         lost = threading.Event()
         try:

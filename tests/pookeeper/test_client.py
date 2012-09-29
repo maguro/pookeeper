@@ -40,7 +40,7 @@ class  SessionTests(PookeeperTestCase):
         disconnect handling
         """
         self.client.create('/e', CREATOR_ALL_ACL, Ephemeral())
-        self.client._drop()
+        self.client.drop()
 
         try:
             self.client.exists('/e')
