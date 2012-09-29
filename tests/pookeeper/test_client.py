@@ -18,7 +18,7 @@ import random
 import time
 
 from pookeeper.harness import PookeeperTestCase
-from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError
+from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, OPEN_ACL_UNSAFE, ConnectionLoss
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
@@ -48,21 +48,42 @@ class  SessionTests(PookeeperTestCase):
         except ConnectionDroppedForTest:
             pass
 
-        self.client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
-        stat = self.client.exists('/e')
+        resumed_client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
+        stat = resumed_client.exists('/e')
         assert stat is not None
 
-        self.client.close()
+        resumed_client.close()
 
         try:
-            self.client.exists('/e')
+            resumed_client.exists('/e')
             assert False, 'Should have raised SessionExpiredError'
         except SessionExpiredError:
             pass
 
-        self.client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
-        stat = self.client.exists('/e')
+        new_client = self._get_client(session_timeout=resumed_client.session_timeout, session_id=resumed_client.session_id, session_passwd=resumed_client.session_passwd)
+        stat = new_client.exists('/e')
         assert stat is None
+        new_client.close()
+
+    def test_session_move(self):
+        """ Test session move
+
+        Make sure that we cannot have two connections with the same
+        session id.
+        """
+        self.client.create('/sessionMoveTest', OPEN_ACL_UNSAFE, Ephemeral())
+
+        new_client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
+        new_client.sync('/')
+        new_client.set_data('/', _random_data())
+
+        try:
+            self.client.set_data('/', _random_data())
+            assert False, 'Session should have moved'
+        except ConnectionLoss:
+            self.client.close()
+
+        new_client.close()
 
 
 def _random_data():
