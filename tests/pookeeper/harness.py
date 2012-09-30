@@ -151,3 +151,17 @@ class PookeeperTestCase(unittest.TestCase, PookeeperTestHarness):
 
     def tearDown(self):
         self.teardown_zookeeper()
+
+
+def add_handler(name, log_level=logging.NOTSET, format='%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'):
+    logger = logging.getLogger(name)
+
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
+
+    console = logging.StreamHandler()
+    console.setLevel(log_level)
+    console.setFormatter(logging.Formatter(format))
+
+    logger.addHandler(console)
+
