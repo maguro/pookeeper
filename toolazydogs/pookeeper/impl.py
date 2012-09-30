@@ -84,6 +84,7 @@ class ReaderThread(threading.Thread):
         self.read_timeout = read_timeout
 
     def run(self):
+        LOGGER.debug('Reader started')
         try:
             while True:
                 try:
