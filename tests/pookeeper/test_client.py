@@ -18,8 +18,6 @@ import logging
 import random
 import time
 
-from nose.plugins.attrib import attr
-
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase
 from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss
@@ -75,7 +73,6 @@ class  SessionTests(PookeeperTestCase):
         assert stat is None
         new_client.close()
 
-    @attr('adc')
     def test_session_move(self):
         """ Test session move
 
