@@ -31,8 +31,7 @@ from collections import namedtuple
 from glob import glob
 
 
-ServerInfo = namedtuple(
-    "ServerInfo", "server_id client_port election_port leader_port")
+ServerInfo = namedtuple("ServerInfo", "server_id client_port election_port leader_port")
 
 
 class ManagedZooKeeper(object):
@@ -204,9 +203,7 @@ class ZookeeperCluster(object):
         for i in range(size):
             server_peers = list(peers)
             server_info = server_peers.pop(i)
-            self._servers.append(
-                ManagedZooKeeper(
-                    self._install_path, server_info, server_peers))
+            self._servers.append(ManagedZooKeeper(self._install_path, server_info, server_peers))
 
     def __getitem__(self, k):
         return self._servers[k]
