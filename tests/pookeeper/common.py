@@ -206,9 +206,13 @@ class ZookeeperCluster(object):
             self._servers.append(ManagedZooKeeper(self._install_path, server_info, server_peers))
 
     def __getitem__(self, k):
+        if not self._servers:
+            raise ValueError('cluster terminated')
         return self._servers[k]
 
     def __iter__(self):
+        if not self._servers:
+            raise ValueError('cluster terminated')
         return iter(self._servers)
 
     def start(self):
@@ -228,11 +232,11 @@ class ZookeeperCluster(object):
     def stop(self):
         for server in self:
             server.stop()
-        self._servers = []
 
     def terminate(self):
         for server in self:
             server.destroy()
+        self._servers = []
 
     def reset(self):
         for server in self:
