@@ -18,6 +18,7 @@ import logging
 import random
 import threading
 import time
+from nose.plugins.attrib import attr
 
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase
@@ -27,6 +28,25 @@ from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
 LOGGER = logging.getLogger('toolazydogs.pookeeper.test')
+
+class  WatcherTests(PookeeperTestCase):
+    def setUp(self):
+    #        add_handler('toolazydogs.pookeeper')
+        PookeeperTestCase.setUp(self)
+
+    @attr('adc')
+    def test_close(self):
+        watcher = WatcherCounter()
+        client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
+        client.sync('/')
+        client.close()
+
+        assert watcher._session_connected == 1
+        assert not watcher._session_expired
+        assert not watcher._auth_failed
+        assert not watcher._connection_dropped
+        assert watcher._connection_closed == 1
+
 
 class  SessionTests(PookeeperTestCase):
     def setUp(self):
@@ -145,7 +165,6 @@ class  SessionTests(PookeeperTestCase):
 
         time.sleep(5)
 
-        print watcher
         assert watcher._session_connected == 1
         assert not watcher._session_expired
         assert not watcher._auth_failed
