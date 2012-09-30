@@ -51,7 +51,7 @@ from toolazydogs.pookeeper.packets.proto.TransactionResponse import TransactionR
 LOGGER = logging.getLogger('toolazydogs.pookeeper')
 
 class Client33(object):
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None):
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
@@ -67,6 +67,8 @@ class Client33(object):
         self.read_timeout = session_timeout * 2.0 / 3.0
         self.auth_data = auth_data if auth_data else set([])
         self.read_only = False
+
+        self.allow_reconnect = allow_reconnect
 
         self.last_zxid = 0
 

@@ -94,6 +94,7 @@ class  SessionTests(PookeeperTestCase):
             new_client = DropableClient34(server.address, session_timeout=session_timeout, session_id=session_id, session_passwd=session_passwd)
             new_client.sync('/')
             new_client.set_data('/', _random_data())
+            new_client.allow_reconnect = False
 
             if old_client:
                 try:

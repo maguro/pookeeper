@@ -24,7 +24,7 @@ import threading
 import time
 from time import time as _time
 
-from toolazydogs.pookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED
+from toolazydogs.pookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST
 from toolazydogs.pookeeper.archive import OutputArchive, InputArchive
 from toolazydogs.pookeeper.packets.proto.AuthPacket import AuthPacket
 from toolazydogs.pookeeper.packets.proto.CloseRequest import CloseRequest
@@ -201,11 +201,15 @@ class WriterThread(threading.Thread):
         writer_done = False
 
         for host, port in self.client.hosts:
-            self.socket = self.client._allocate_socket()
-
-            self.client._state = CONNECTING
-
             try:
+                if not self.client.allow_reconnect:
+                    self.client._closed(CONNECTION_DROPPED_FOR_TEST)
+                    break
+
+                self.socket = self.client._allocate_socket()
+
+                self.client._state = CONNECTING
+
                 self._connect(self.socket, host, port)
 
                 reader_done = threading.Event()
