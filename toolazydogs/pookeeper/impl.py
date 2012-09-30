@@ -223,7 +223,7 @@ class WriterThread(threading.Thread):
                 xid = 0
                 while not writer_done:
                     try:
-                        request, _, _ = self.client._queue.peek(True, self.read_timeout / 2000.0)
+                        request, _, _ = self.client._queue.peek(True, self.read_timeout / 2.0)
                         LOGGER.debug('Sending %r', request)
 
                         xid += 1
