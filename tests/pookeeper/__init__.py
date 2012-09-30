@@ -19,8 +19,8 @@ from toolazydogs.pookeeper.zookeeper import Client34
 
 
 class DropableClient34(Client34):
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
-        super(DropableClient34, self).__init__(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
+        super(DropableClient34, self).__init__(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
 
     def drop(self):
         assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST])

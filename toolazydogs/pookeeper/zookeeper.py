@@ -582,8 +582,8 @@ class Client33(object):
 
 
 class Client34(Client33):
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
-        Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
+        Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
         self.read_only = read_only
 
     def allocate_transaction(self):

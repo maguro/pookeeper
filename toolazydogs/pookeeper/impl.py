@@ -200,9 +200,10 @@ class WriterThread(threading.Thread):
 
         writer_done = False
 
+        succeded_in_connecting = False
         for host, port in self.client.hosts:
             try:
-                if not self.client.allow_reconnect:
+                if succeded_in_connecting and not self.client.allow_reconnect:
                     self.client._closed(CONNECTION_DROPPED_FOR_TEST)
                     break
 
@@ -211,6 +212,8 @@ class WriterThread(threading.Thread):
                 self.client._state = CONNECTING
 
                 self._connect(self.socket, host, port)
+
+                succeded_in_connecting = True
 
                 reader_done = threading.Event()
 

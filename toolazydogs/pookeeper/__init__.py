@@ -27,7 +27,7 @@ __version__ = '0.1.0-dev'
 
 LOGGER = logging.getLogger('toolazydogs.pookeeper')
 
-def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
     """ Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
@@ -81,10 +81,10 @@ def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, 
             also be notified for node events
 
     """
-    return allocate_34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+    return allocate_34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
 
 
-def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None):
+def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
     """ Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
@@ -141,14 +141,14 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
     from toolazydogs.pookeeper.zookeeper import Client34
 
 
-    handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+    handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
 
-    LOGGER.debug('Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s', hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher)
+    LOGGER.debug('Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s, %s', hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
 
     return handle
 
 
-def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None):
+def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
     """ Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
@@ -198,9 +198,9 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
     from toolazydogs.pookeeper.zookeeper import Client33
 
 
-    handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
+    handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
 
-    LOGGER.debug('Allocated v3.3 client, %s, %s, %s, %s, %r, %s', hosts, session_id, session_passwd, session_timeout, auth_data, watcher)
+    LOGGER.debug('Allocated v3.3 client, %s, %s, %s, %s, %r, %s, %s', hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
 
     return handle
 

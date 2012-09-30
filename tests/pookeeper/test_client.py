@@ -91,10 +91,9 @@ class  SessionTests(PookeeperTestCase):
             session_id = old_client.session_id if old_client else None
             session_passwd = old_client.session_passwd if old_client else None
 
-            new_client = DropableClient34(server.address, session_timeout=session_timeout, session_id=session_id, session_passwd=session_passwd)
+            new_client = DropableClient34(server.address, session_timeout=session_timeout, session_id=session_id, session_passwd=session_passwd, allow_reconnect=False)
             new_client.sync('/')
             new_client.set_data('/', _random_data())
-            new_client.allow_reconnect = False
 
             if old_client:
                 try:
