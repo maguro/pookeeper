@@ -16,12 +16,13 @@
 """
 import logging
 import random
+import threading
 import time
 
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase
 from toolazydogs import pookeeper
-from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss
+from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
@@ -107,23 +108,82 @@ class  SessionTests(PookeeperTestCase):
         """
         TICK_TIME = 2.0
 
+        # validate typical case - requested == negotiated
         client = pookeeper.allocate(self.hosts, session_timeout=TICK_TIME * 4)
         client.sync('/')
-        print client.negotiated_session_timeout
         assert TICK_TIME * 4 == client.negotiated_session_timeout
         client.close()
 
+        # validate lower limit
         client = pookeeper.allocate(self.hosts, session_timeout=TICK_TIME)
         client.sync('/')
-        print client.negotiated_session_timeout
         assert TICK_TIME * 2 == client.negotiated_session_timeout
         client.close()
 
+        # validate upper limit
         client = pookeeper.allocate(self.hosts, session_timeout=TICK_TIME * 30)
         client.sync('/')
-        print client.negotiated_session_timeout
         assert TICK_TIME * 20 == client.negotiated_session_timeout
         client.close()
+
+    def test_state_no_dupuplicate_reporting(self):
+        """ Verify state change notifications are not duplicated
+
+        This test makes sure that duplicate state changes are not communicated
+        to the client watcher. For example we should not notify state as
+        "disconnected" if the watch has already been disconnected. In general
+        we don't consider a dup state notification if the event type is
+        not "None" (ie non-None communicates an event).
+        """
+
+        self.client.close()
+
+        watcher = WatcherCounter()
+        client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
+
+        self.cluster.stop()
+
+        time.sleep(5)
+
+        print watcher
+        assert watcher._session_connected == 1
+        assert not watcher._session_expired
+        assert not watcher._auth_failed
+        assert watcher._connection_dropped == 1
+        assert not watcher._connection_closed
+
+
+class WatcherCounter(Watcher):
+    def __init__(self, session_connected=0, session_expired=0, auth_failed=0, connection_dropped=0, connection_closed=0):
+        self._session_connected = session_connected
+        self._session_expired = session_expired
+        self._auth_failed = auth_failed
+        self._connection_dropped = connection_dropped
+        self._connection_closed = connection_closed
+        self._state_lock = threading.RLock()
+
+    def __repr__(self):
+        return 'WatcherCounter(%s, %s, %s, %s, %s)' % (self._session_connected, self._session_expired, self._auth_failed, self._connection_dropped, self._connection_closed)
+
+    def session_connected(self, session_id, session_password, read_only):
+        with self._state_lock:
+            self._session_connected += 1
+
+    def session_expired(self, session_id):
+        with self._state_lock:
+            self._session_expired += 1
+
+    def auth_failed(self):
+        with self._state_lock:
+            self._auth_failed += 1
+
+    def connection_dropped(self):
+        with self._state_lock:
+            self._connection_dropped += 1
+
+    def connection_closed(self):
+        with self._state_lock:
+            self._connection_closed += 1
 
 
 def _random_data():
