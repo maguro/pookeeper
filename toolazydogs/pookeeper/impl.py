@@ -303,13 +303,13 @@ class WriterThread(threading.Thread):
         else:
             if zxid: self.client.last_zxid = zxid
             self.client.session_id = connection_response.sessionId
-            negotiated_session_timeout = connection_response.timeOut
-            self.connect_timeout = negotiated_session_timeout / len(self.client.hosts)
-            self.read_timeout = negotiated_session_timeout * 2.0 / 3.0
+            self.client.negotiated_session_timeout = connection_response.timeOut / 1000.0
+            self.connect_timeout = connection_response.timeOut / len(self.client.hosts) / 1000.0
+            self.read_timeout = connection_response.timeOut * 2.0 / 3.0 / 1000.0
             self.client.session_passwd = connection_response.passwd
 
             LOGGER.debug('Session created, session_id: %r session_passwd: 0x%s', self.client.session_id, self.client.session_passwd.encode('hex'))
-            LOGGER.debug('    negotiated session timeout: %s', negotiated_session_timeout)
+            LOGGER.debug('    negotiated session timeout: %s', self.client.negotiated_session_timeout)
             LOGGER.debug('    connect timeout: %s', self.connect_timeout)
             LOGGER.debug('    read timeout: %s', self.read_timeout)
 

@@ -20,6 +20,7 @@ import time
 
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase
+from toolazydogs import pookeeper
 from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
@@ -80,8 +81,6 @@ class  SessionTests(PookeeperTestCase):
         session id.
         """
 
-        self.client.close()
-
         old_client = None
         for server in self.cluster:
             session_timeout = old_client.session_timeout if old_client else 30.0
@@ -102,6 +101,29 @@ class  SessionTests(PookeeperTestCase):
             old_client = new_client
 
         old_client.drop()
+
+    def test_negotiated_session_timeout(self):
+        """ Verify access to the negotiated session timeout
+        """
+        TICK_TIME = 2.0
+
+        client = pookeeper.allocate(self.hosts, session_timeout=TICK_TIME * 4)
+        client.sync('/')
+        print client.negotiated_session_timeout
+        assert TICK_TIME * 4 == client.negotiated_session_timeout
+        client.close()
+
+        client = pookeeper.allocate(self.hosts, session_timeout=TICK_TIME)
+        client.sync('/')
+        print client.negotiated_session_timeout
+        assert TICK_TIME * 2 == client.negotiated_session_timeout
+        client.close()
+
+        client = pookeeper.allocate(self.hosts, session_timeout=TICK_TIME * 30)
+        client.sync('/')
+        print client.negotiated_session_timeout
+        assert TICK_TIME * 20 == client.negotiated_session_timeout
+        client.close()
 
 
 def _random_data():
