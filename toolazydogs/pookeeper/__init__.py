@@ -25,7 +25,7 @@ from toolazydogs.pookeeper.packets.data.Id import Id
 
 __version__ = '0.1.0-dev'
 
-LOGGER = logging.getLogger('toolazydogs.pookeeper')
+LOGGER = logging.getLogger(__name__)
 
 def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
     """ Create a ZooKeeper client object

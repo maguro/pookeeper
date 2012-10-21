@@ -36,7 +36,7 @@ from toolazydogs.pookeeper.packets.proto.ReplyHeader import ReplyHeader
 from toolazydogs.pookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
-LOGGER = logging.getLogger('toolazydogs.pookeeper.protocol')
+LOGGER = logging.getLogger(__name__)
 
 
 class ConnectionDropped(RuntimeError):

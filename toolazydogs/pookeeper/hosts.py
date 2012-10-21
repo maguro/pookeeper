@@ -14,8 +14,10 @@
  specific language governing permissions and limitations
  under the License.
 """
+import logging
 import random
 
+LOGGER = logging.getLogger(__name__)
 
 class RandomHostIterator:
     """ An iterator that returns a randomly selected host.  A host is
@@ -53,4 +55,6 @@ def collect_hosts(hosts):
         host, port = host_port.partition(":")[::2]
         port = int(port.strip()) if port else 2181
         result.append((host.strip(), port))
-    return (RandomHostIterator(result), chroot)
+    LOGGER.debug('Found host/ports: %r', result)
+    LOGGER.debug('Found chroot: %r', chroot)
+    return RandomHostIterator(result), chroot

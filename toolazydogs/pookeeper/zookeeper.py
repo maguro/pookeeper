@@ -48,7 +48,7 @@ from toolazydogs.pookeeper.packets.proto.TransactionRequest import TransactionRe
 from toolazydogs.pookeeper.packets.proto.TransactionResponse import TransactionResponse
 
 
-LOGGER = logging.getLogger('toolazydogs.pookeeper')
+LOGGER = logging.getLogger(__name__)
 
 class Client33(object):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
