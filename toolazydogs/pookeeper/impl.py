@@ -196,7 +196,7 @@ class WriterThread(threading.Thread):
         self.client = client
 
     def run(self):
-        LOGGER.debug('Starting writer')
+        LOGGER.debug('Starting writer %r', self.client.hosts)
 
         writer_done = False
 
@@ -252,10 +252,6 @@ class WriterThread(threading.Thread):
                 if writer_done:
                     self.client._closed(CLOSED)
                     break
-            except (ConnectionDropped, SessionTimeout):
-                LOGGER.warning('Connection dropped or timed out')
-                self.client._disconnected()
-                time.sleep(random.random())
             except SessionExpired:
                 LOGGER.warning('Session expired, closing')
                 self.client._closed(CLOSED, session_expired=True)
@@ -264,8 +260,9 @@ class WriterThread(threading.Thread):
                 LOGGER.warning('Auth failed, closing')
                 self.client._closed(AUTH_FAILED)
                 break
-            except Exception as e:
-                LOGGER.warning(e)
+            except (ConnectionDropped, SessionTimeout, Exception) as e:
+                LOGGER.warning(str(e))
+                LOGGER.exception(e)
                 self.client._disconnected()
                 time.sleep(random.random())
             finally:
