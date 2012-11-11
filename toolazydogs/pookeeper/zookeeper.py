@@ -63,12 +63,20 @@ class Client33(object):
         self.session_id = session_id
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
         self.session_timeout = session_timeout
-        self.connect_timeout = session_timeout / len(hosts)
+        self.connect_timeout = session_timeout / len(self.hosts)
         self.read_timeout = session_timeout * 2.0 / 3.0
         self.auth_data = auth_data if auth_data else set([])
         self.read_only = False
+        LOGGER.debug('session_id: %s', self.session_id)
+        LOGGER.debug('session_passwd: %s', self.session_passwd)
+        LOGGER.debug('session_timeout: %s', self.session_timeout)
+        LOGGER.debug('connect_timeout: %s', self.connect_timeout)
+        LOGGER.debug('   len(hosts): %s',  len(self.hosts))
+        LOGGER.debug('read_timeout: %s', self.read_timeout)
+        LOGGER.debug('auth_data: %s', self.auth_data)
 
         self.allow_reconnect = allow_reconnect
+        LOGGER.debug('allow_reconnect: %s', self.allow_reconnect)
 
         self.last_zxid = 0
 
