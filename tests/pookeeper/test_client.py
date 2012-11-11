@@ -18,6 +18,7 @@ import logging
 import random
 import threading
 import time
+
 from nose.plugins.attrib import attr
 
 from pookeeper import DropableClient34
@@ -34,7 +35,6 @@ class  WatcherTests(PookeeperTestCase):
     #        add_handler('toolazydogs.pookeeper')
         PookeeperTestCase.setUp(self)
 
-    @attr('adc')
     def test_close(self):
         watcher = WatcherCounter()
         client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
@@ -160,6 +160,8 @@ class  SessionTests(PookeeperTestCase):
 
         watcher = WatcherCounter()
         client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
+
+        client.sync('/')
 
         self.cluster.stop()
 
