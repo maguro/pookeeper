@@ -26,8 +26,10 @@ class RandomHostIterator:
     """
 
     def __init__(self, hosts):
-        self.last = 0
-        self.hosts = hosts
+        self.index = -1
+        self.hosts = [host for host in hosts]
+        random.shuffle(self.hosts)
+        self._len = len(self.hosts)
 
     def __iter__(self):
         return self
@@ -36,12 +38,8 @@ class RandomHostIterator:
         return len(self.hosts)
 
     def next(self):
-        selected = self.last
-        if (len(self.hosts) > 1):
-            while selected == self.last:
-                selected = random.randint(0, len(self.hosts) - 1)
-            self.last = selected
-        return self.hosts[selected]
+        self.index += 1
+        return self.hosts[self.index % self._len]
 
 
 def collect_hosts(hosts):
