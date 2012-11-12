@@ -60,7 +60,7 @@ class  SessionTests(PookeeperTestCase):
         """ Make sure client connection is kept alive by behind the scenes pinging
         """
 
-        client = pookeeper.allocate(self.hosts)
+        client = pookeeper.allocate(self.hosts, session_timeout=0.8)
         client.sync('/')
 
         time.sleep(5)
