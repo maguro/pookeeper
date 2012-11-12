@@ -143,7 +143,7 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
 
     handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
 
-    LOGGER.debug('Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s, %s', hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
+    LOGGER.debug('Allocated v3.4 client, %s, %s, 0x%s, %s, %r, %s, %s, %s', hosts, session_id, session_passwd.encode('hex'), session_timeout, auth_data, read_only, watcher, allow_reconnect)
 
     return handle
 
@@ -200,7 +200,7 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
 
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
 
-    LOGGER.debug('Allocated v3.3 client, %s, %s, %s, %s, %r, %s, %s', hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
+    LOGGER.debug('Allocated v3.3 client, %s, %s, 0x%s, %s, %r, %s, %s', hosts, session_id, session_passwd.encode('hex'), session_timeout, auth_data, watcher, allow_reconnect)
 
     return handle
 

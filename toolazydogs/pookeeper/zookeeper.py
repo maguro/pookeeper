@@ -68,7 +68,7 @@ class Client33(object):
         self.auth_data = auth_data if auth_data else set([])
         self.read_only = False
         LOGGER.debug('session_id: %s', self.session_id)
-        LOGGER.debug('session_passwd: %s', self.session_passwd)
+        LOGGER.debug('session_passwd: 0x%s', self.session_passwd.encode('hex'))
         LOGGER.debug('session_timeout: %s', self.session_timeout)
         LOGGER.debug('connect_timeout: %s', self.connect_timeout)
         LOGGER.debug('   len(hosts): %s',  len(self.hosts))
