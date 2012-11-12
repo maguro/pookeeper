@@ -19,20 +19,21 @@ import random
 import threading
 import time
 
-from nose.plugins.attrib import attr
-
 from pookeeper import DropableClient34
-from pookeeper.harness import PookeeperTestCase
+from pookeeper.harness import PookeeperTestCase, add_handler
 from toolazydogs import pookeeper
 from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
 LOGGER = logging.getLogger('toolazydogs.pookeeper.test')
+DEBUG_LOG = False
 
 class  WatcherTests(PookeeperTestCase):
     def setUp(self):
-    #        add_handler('toolazydogs.pookeeper')
+        if DEBUG_LOG:
+            add_handler('pookeeper')
+            add_handler('toolazydogs.pookeeper')
         PookeeperTestCase.setUp(self)
 
     def test_close(self):
@@ -50,16 +51,22 @@ class  WatcherTests(PookeeperTestCase):
 
 class  SessionTests(PookeeperTestCase):
     def setUp(self):
-    #        add_handler('toolazydogs.pookeeper')
+        if DEBUG_LOG:
+            add_handler('pookeeper')
+            add_handler('toolazydogs.pookeeper')
         PookeeperTestCase.setUp(self)
 
     def test_ping(self):
         """ Make sure client connection is kept alive by behind the scenes pinging
         """
 
+        client = pookeeper.allocate(self.hosts)
+        client.sync('/')
+
         time.sleep(5)
 
-        self.client.get_children('/')
+        client.get_children('/')
+        client.close()
 
 
     def test_session_resumption(self):
@@ -69,16 +76,17 @@ class  SessionTests(PookeeperTestCase):
         disconnect to the server as usual. This allows the test to verify
         disconnect handling
         """
-        self.client.create('/e', CREATOR_ALL_ACL, Ephemeral())
-        self.client.drop()
+        client = DropableClient34(self.hosts)
+        client.create('/e', CREATOR_ALL_ACL, Ephemeral())
+        client.drop()
 
         try:
-            self.client.exists('/e')
+            client.exists('/e')
             assert False, 'Connection dropped for test'
         except ConnectionDroppedForTest:
             pass
 
-        resumed_client = self._get_client(session_timeout=self.client.session_timeout, session_id=self.client.session_id, session_passwd=self.client.session_passwd)
+        resumed_client = pookeeper.allocate(self.hosts, session_timeout=client.session_timeout, session_id=client.session_id, session_passwd=client.session_passwd)
         stat = resumed_client.exists('/e')
         assert stat is not None
 
@@ -155,8 +163,6 @@ class  SessionTests(PookeeperTestCase):
         we don't consider a dup state notification if the event type is
         not "None" (ie non-None communicates an event).
         """
-
-        self.client.close()
 
         watcher = WatcherCounter()
         client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)

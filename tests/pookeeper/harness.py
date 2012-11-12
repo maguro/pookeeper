@@ -18,17 +18,14 @@
 import atexit
 import logging
 import os
-import uuid
-import threading
 import unittest
+
 from pookeeper import DropableClient34
-
 from pookeeper.common import ZookeeperCluster
-from toolazydogs import pookeeper
-from toolazydogs.pookeeper import CONNECTED, Watcher, SessionExpiredError
+from toolazydogs.pookeeper import  Watcher
 
 
-log = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 CLUSTER = None
 
@@ -97,23 +94,6 @@ class PookeeperTestHarness(object):
     def _get_client(self, **kwargs):
         return DropableClient34(self.hosts, **kwargs)
 
-    def expire_session(self, session_id=None):
-        """Force ZK to expire a client session
-
-        :param session_id: id of session to expire. If unspecified, the id of
-                          self.client will be used.
-
-        """
-        session_id = session_id or self.client.session_id
-
-        client = DropableClient34(self.hosts, session_id=session_id, session_timeout=0.8)
-        client.close()
-        lost = threading.Event()
-        try:
-            self.client.get_children('/', watcher=ExpiredWatcher(lost))
-        except SessionExpiredError:
-            pass
-        lost.wait()
 
     def setup_zookeeper(self):
         """Create a ZK cluster and chrooted :class:`Client33`
@@ -123,26 +103,13 @@ class PookeeperTestHarness(object):
         """
         if not self.cluster[0].running:
             self.cluster.start()
-        namespace = "/pookeepertests" + uuid.uuid4().hex
-        self.hosts = self.servers + namespace
-
-        self.client = self._get_client(session_timeout=0.8)
-        pookeeper.create(self.client, '/')
+        self.hosts = self.servers
 
     def teardown_zookeeper(self):
         """Clean up any ZNodes created during the test
         """
-        if not self.cluster[0].running:
-            self.cluster.start()
-
-        if self.client.state == CONNECTED:
-            pookeeper.delete(self.client, '/')
-            self.client.close()
-            del self.client
-        else:
-            client = self._get_client()
-            pookeeper.delete(client, '/')
-            client.close()
+        if self.cluster[0].running:
+            self.cluster.stop()
 
 
 class PookeeperTestCase(unittest.TestCase, PookeeperTestHarness):
