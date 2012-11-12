@@ -235,7 +235,7 @@ class ZookeeperCluster(object):
         import time
 
 
-        time.sleep(2)
+        time.sleep(5)
 
         LOGGER.debug('Started cluster')
 
