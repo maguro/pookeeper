@@ -189,6 +189,7 @@ log4j.appender.ROLLINGFILE.File=""" + (
     def __repr__(self):
         return 'ManagedZooKeeper(%r, %r, %r)' % (self.install_path, self.server_info, self.peers)
 
+PORT_INCREMENT = 10
 
 class ZookeeperCluster(object):
     def __init__(self, install_path, size=3, port_offset=20000):
@@ -196,11 +197,11 @@ class ZookeeperCluster(object):
         self._servers = []
 
         # Calculate ports and peer group
-        port = port_offset
+        port = port_offset - PORT_INCREMENT
         peers = []
 
         for i in range(size):
-            port += i * 10
+            port += PORT_INCREMENT
             info = ServerInfo(i + 1, port, port + 1, port + 2)
             peers.append(info)
 
