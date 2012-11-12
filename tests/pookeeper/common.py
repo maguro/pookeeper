@@ -19,7 +19,7 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with txzookeeper.  If not, see <http://www.gnu.org/licenses/>.
 #
-
+import logging
 
 import os
 import shutil
@@ -30,6 +30,8 @@ from itertools import chain
 from collections import namedtuple
 from glob import glob
 
+
+LOGGER = logging.getLogger(__name__)
 
 ServerInfo = namedtuple("ServerInfo", "server_id client_port election_port leader_port")
 
@@ -184,6 +186,9 @@ log4j.appender.ROLLINGFILE.File=""" + (
 
         shutil.rmtree(self.working_path)
 
+    def __repr__(self):
+        return 'ManagedZooKeeper(%r, %r, %r)' % (self.install_path, self.server_info, self.peers)
+
 
 class ZookeeperCluster(object):
     def __init__(self, install_path, size=3, port_offset=20000):
@@ -216,6 +221,8 @@ class ZookeeperCluster(object):
         return iter(self._servers)
 
     def start(self):
+        LOGGER.debug('Starting cluster of %r', self._servers)
+
         # Zookeeper client expresses a preference for either lower ports or
         # lexicographical ordering of hosts, to ensure that all servers have a
         # chance to startup, start them in reverse order.
@@ -229,15 +236,23 @@ class ZookeeperCluster(object):
 
         time.sleep(2)
 
+        LOGGER.debug('Started cluster')
+
     def stop(self):
+        LOGGER.debug('Stopping cluster of %r', self._servers)
         for server in self:
             server.stop()
+        LOGGER.debug('Stopped cluster')
 
     def terminate(self):
+        LOGGER.debug('Terminating cluster of %r', self._servers)
         for server in self:
             server.destroy()
         self._servers = []
+        LOGGER.debug('Terminated cluster')
 
     def reset(self):
+        LOGGER.debug('Resetting cluster of %r', self._servers)
         for server in self:
             server.reset()
+        LOGGER.debug('Reset cluster')
