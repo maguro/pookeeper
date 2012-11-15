@@ -22,7 +22,7 @@ import time
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase
 from toolazydogs import pookeeper
-from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher
+from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher, AuthFailedError
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
@@ -166,6 +166,18 @@ class  SessionTests(PookeeperTestCase):
         assert not watcher._auth_failed
         assert watcher._connection_dropped == 1
         assert not watcher._connection_closed
+
+
+class AuthTests(PookeeperTestCase):
+    def test_auth(self):
+        z = pookeeper.allocate(self.hosts, auth_data=set([('bogus', 'authdata')]))
+        try:
+            z.exists('/zookeeper')
+            assert False, 'Allocation should have thrown an AuthFailedError'
+        except AuthFailedError:
+            pass
+        finally:
+            z.close()
 
 
 class WatcherCounter(Watcher):
