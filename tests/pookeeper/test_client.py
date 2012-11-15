@@ -20,7 +20,7 @@ import threading
 import time
 
 from pookeeper import DropableClient34
-from pookeeper.harness import PookeeperTestCase, add_handler
+from pookeeper.harness import PookeeperTestCase
 from toolazydogs import pookeeper
 from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
@@ -30,12 +30,6 @@ LOGGER = logging.getLogger('toolazydogs.pookeeper.test')
 DEBUG_LOG = False
 
 class  WatcherTests(PookeeperTestCase):
-    def setUp(self):
-        if DEBUG_LOG:
-            add_handler('pookeeper')
-            add_handler('toolazydogs.pookeeper')
-        PookeeperTestCase.setUp(self)
-
     def test_close(self):
         watcher = WatcherCounter()
         client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
@@ -50,12 +44,6 @@ class  WatcherTests(PookeeperTestCase):
 
 
 class  SessionTests(PookeeperTestCase):
-    def setUp(self):
-        if DEBUG_LOG:
-            add_handler('pookeeper')
-            add_handler('toolazydogs.pookeeper')
-        PookeeperTestCase.setUp(self)
-
     def test_ping(self):
         """ Make sure client connection is kept alive by behind the scenes pinging
         """

@@ -28,6 +28,7 @@ from toolazydogs.pookeeper import  Watcher
 LOGGER = logging.getLogger(__name__)
 
 CLUSTER = None
+DEBUG_LOG = False
 
 
 def get_global_cluster():
@@ -115,6 +116,9 @@ class PookeeperTestHarness(object):
 class PookeeperTestCase(unittest.TestCase, PookeeperTestHarness):
     def setUp(self):
         self.setup_zookeeper()
+        if DEBUG_LOG:
+            add_handler('pookeeper')
+            add_handler('toolazydogs.pookeeper')
 
     def tearDown(self):
         self.teardown_zookeeper()
