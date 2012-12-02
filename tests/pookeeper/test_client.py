@@ -318,8 +318,14 @@ class AuthTests(PookeeperTestCase):
             assert False, 'Allocation should have thrown an AuthFailedError'
         except AuthFailedError:
             pass
-        finally:
-            z.close()
+
+        try:
+            z.exists('/zookeeper')
+            assert False, 'Allocation should have thrown an AuthFailedError'
+        except AuthFailedError:
+            pass
+
+        z.close()
 
 
 class CreateCodeTests(PookeeperTestCase):
