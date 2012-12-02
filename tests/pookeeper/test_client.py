@@ -19,17 +19,21 @@ import random
 import threading
 import time
 
+from mockito import mockito, inorder, matchers
+from mockito.mocking import mock
+from mockito.mockito import verifyNoMoreInteractions
+from nose.plugins.attrib import attr
+
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase
 from toolazydogs import pookeeper
-from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher, AuthFailedError
+from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher, AuthFailedError, Persistent, PersistentSequential, EphemeralSequential, READ_ACL_UNSAFE
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
 
 
 LOGGER = logging.getLogger('toolazydogs.pookeeper.test')
-DEBUG_LOG = False
 
-class  WatcherTests(PookeeperTestCase):
+class WatcherTests(PookeeperTestCase):
     def test_close(self):
         watcher = WatcherCounter()
         client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
@@ -42,8 +46,146 @@ class  WatcherTests(PookeeperTestCase):
         assert not watcher._connection_dropped
         assert watcher._connection_closed == 1
 
+    def test_exists_default_watcher(self):
+        watcher = mock()
+        z = pookeeper.allocate(self.hosts, watcher=watcher)
 
-class  SessionTests(PookeeperTestCase):
+        assert not z.exists('/pookie', watch=True)
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie', watch=True)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        # This data change will be ignored since the watch has been reset
+        z.set_data('/pookie', _random_data(), stat.version)
+        stat = z.exists('/pookie', watch=True)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).session_connected(matchers.any(long), matchers.any(str), False)
+        inorder.verify(watcher).node_created('/pookie')
+        inorder.verify(watcher).data_changed('/pookie')
+        inorder.verify(watcher).node_deleted('/pookie')
+        inorder.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+    def test_set_data_default_watcher(self):
+        watcher = mock()
+        z = pookeeper.allocate(self.hosts, watcher=watcher)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie')
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watch=True)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watch=True)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).session_connected(matchers.any(long), matchers.any(str), False)
+        inorder.verify(watcher).data_changed('/pookie')
+        inorder.verify(watcher).node_deleted('/pookie')
+        inorder.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+    def test_get_children_default_watcher(self):
+        watcher = mock()
+        z = pookeeper.allocate(self.hosts, watcher=watcher)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watch=True)
+
+        z.create('/pookie/bear', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watch=True)
+
+        z.set_data('/pookie', _random_data())
+        z.set_data('/pookie/bear', _random_data())
+
+        # One is for when we do and the other is for when we don't chroot
+        z.get_children('/pookie', watch=True)
+        z.get_children('/pookie/bear', watch=True)
+
+        z.delete('/pookie/bear')
+        z.delete('/pookie')
+
+        z.close()
+
+        mockito.verify(watcher).session_connected(matchers.any(long), matchers.any(str), False)
+        mockito.verify(watcher, times=2).children_changed('/pookie')
+        mockito.verify(watcher).node_deleted('/pookie/bear')
+        mockito.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+    def test_exists_watcher(self):
+        watcher = mock()
+        z = pookeeper.allocate(self.hosts)
+
+        assert not z.exists('/pookie', watcher=watcher)
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie', watcher=watcher)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        # This data change will be ignored since the watch has been reset
+        z.set_data('/pookie', _random_data(), stat.version)
+        stat = z.exists('/pookie', watcher=watcher)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).node_created('/pookie')
+        inorder.verify(watcher).data_changed('/pookie')
+        inorder.verify(watcher).node_deleted('/pookie')
+        verifyNoMoreInteractions(watcher)
+
+    def test_set_data_watcher(self):
+        watcher = mock()
+        z = pookeeper.allocate(self.hosts)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
+
+        stat = z.exists('/pookie')
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watcher=watcher)
+        stat = z.set_data('/pookie', _random_data(), stat.version)
+        z.get_data('/pookie', watcher=watcher)
+        z.delete('/pookie', stat.version)
+
+        z.close()
+
+        inorder.verify(watcher).data_changed('/pookie')
+        inorder.verify(watcher).node_deleted('/pookie')
+        verifyNoMoreInteractions(watcher)
+
+    def test_get_children_watcher(self):
+        watcher = mock()
+        z = pookeeper.allocate(self.hosts)
+
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watcher=watcher)
+
+        z.create('/pookie/bear', CREATOR_ALL_ACL, Persistent(), data=_random_data())
+        z.get_children('/pookie', watcher=watcher)
+
+        z.set_data('/pookie', _random_data())
+        z.set_data('/pookie/bear', _random_data())
+
+        # One is for when we do and the other is for when we don't chroot
+        z.get_children('/pookie', watcher=watcher)
+        z.get_children('/pookie/bear', watcher=watcher)
+
+        z.delete('/pookie/bear')
+        z.delete('/pookie')
+
+        z.close()
+
+        mockito.verify(watcher, times=2).children_changed('/pookie')
+        mockito.verify(watcher).node_deleted('/pookie/bear')
+        verifyNoMoreInteractions(watcher)
+
+
+class SessionTests(PookeeperTestCase):
     def test_ping(self):
         """ Make sure client connection is kept alive by behind the scenes pinging
         """
@@ -169,7 +311,7 @@ class  SessionTests(PookeeperTestCase):
 
 
 class AuthTests(PookeeperTestCase):
-    def test_auth(self):
+    def test_bugus_auth(self):
         z = pookeeper.allocate(self.hosts, auth_data=set([('bogus', 'authdata')]))
         try:
             z.exists('/zookeeper')
@@ -178,6 +320,213 @@ class AuthTests(PookeeperTestCase):
             pass
         finally:
             z.close()
+
+
+class CreateCodeTests(PookeeperTestCase):
+    def test_persistent(self):
+        z = pookeeper.allocate(self.hosts)
+
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=random_data)
+
+        z.close()
+
+        z = pookeeper.allocate(self.hosts)
+
+        data, stat = z.get_data('/pookie')
+        assert data == random_data
+
+        z.delete('/pookie', stat.version)
+
+        assert not z.exists('/pookie')
+
+        z.close()
+
+    def test_ephemeral(self):
+        z = pookeeper.allocate(self.hosts)
+
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Ephemeral(), data=random_data)
+
+        z.close()
+
+        z = pookeeper.allocate(self.hosts)
+
+        assert not z.exists('/pookie')
+
+        z.close()
+
+    def test_persistent_sequential(self):
+        z = pookeeper.allocate(self.hosts)
+
+        z.create('/root', CREATOR_ALL_ACL, Persistent())
+
+        random_data = _random_data()
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, PersistentSequential(), data=random_data)
+        children, _ = z.get_children('/root')
+        assert len(children) == 1
+        assert int(children[0][len('/root/pookie'):]) == 0
+
+        z.close()
+
+        z = pookeeper.allocate(self.hosts)
+
+        children, _ = z.get_children('/root')
+        assert len(children) == 1
+        assert int(children[0][len('/root/pookie'):]) == 0
+
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, PersistentSequential(), data=random_data)
+
+        children, _ = z.get_children('/root')
+        assert len(children) == 2
+        children = sorted(children)
+        assert int(children[0][len('/root/pookie'):]) == 0
+        assert int(children[1][len('/root/pookie'):]) == 1
+
+        z.close()
+
+        z = pookeeper.allocate(self.hosts)
+        children, _ = z.get_children('/root')
+        assert len(children) == 2
+        children = sorted(children)
+        assert int(children[0][len('/root/pookie'):]) == 0
+        assert int(children[1][len('/root/pookie'):]) == 1
+
+        pookeeper.delete(z, '/root')
+
+        assert not z.exists('/root')
+
+        z.close()
+
+    def test_ephemeral_sequential(self):
+        z = pookeeper.allocate(self.hosts)
+
+        z.create('/root', CREATOR_ALL_ACL, Persistent())
+
+        random_data = _random_data()
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, EphemeralSequential(), data=random_data)
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, EphemeralSequential(), data=random_data)
+        result = z.create('/root/pookie', CREATOR_ALL_ACL, EphemeralSequential(), data=random_data)
+
+        children, _ = z.get_children('/root')
+        children = sorted(children)
+        assert len(children) == 3
+        assert int(children[0][len('/root/pookie'):]) == 0
+        assert int(children[1][len('/root/pookie'):]) == 1
+        assert int(children[2][len('/root/pookie'):]) == 2
+
+        z.close()
+
+        z = pookeeper.allocate(self.hosts)
+
+        children, _ = z.get_children('/root')
+        assert len(children) == 0
+
+        pookeeper.delete(z, '/root')
+
+        assert not z.exists('/root')
+
+        z.close()
+
+    def test_data(self):
+        z = pookeeper.allocate(self.hosts)
+
+        random_data = _random_data()
+        z.create('/pookie', CREATOR_ALL_ACL, Persistent(), data=random_data)
+
+        data, stat = z.get_data('/pookie')
+        assert data == random_data
+
+        new_random_data = _random_data()
+        stat = z.exists('/pookie')
+        z.set_data('/pookie', new_random_data, stat.version)
+
+        data, stat = z.get_data('/pookie')
+        assert data == new_random_data
+
+        z.delete('/pookie', stat.version)
+
+        assert not z.exists('/pookie')
+
+        z.close()
+
+    def test_acls(self):
+        z = pookeeper.allocate(self.hosts)
+
+        z.create('/pookie', CREATOR_ALL_ACL + READ_ACL_UNSAFE, Persistent())
+        acls, stat = z.get_acls('/pookie')
+        assert len(acls) == 2
+        for acl in acls:
+            assert acl in set(CREATOR_ALL_ACL + READ_ACL_UNSAFE)
+
+        z.delete('/pookie', stat.version)
+
+        assert not z.exists('/pookie')
+
+        z.close()
+
+    @attr('adc')
+    def test_transaction(self):
+        z = pookeeper.allocate(self.hosts)
+
+        # this should fail because /bar does not exist
+        z.create('/foo', CREATOR_ALL_ACL, Persistent())
+        stat = z.exists('/foo')
+
+        transaction = z.allocate_transaction()
+        transaction.create('/pookie', CREATOR_ALL_ACL, Persistent())
+        transaction.check('/foo', stat.version)
+        transaction.check('/bar', stat.version)
+        transaction.delete('/foo', stat.version)
+        transaction.commit()
+
+        assert not z.exists('/pookie')
+        assert z.exists('/foo')
+
+        # this should succeed
+        transaction = z.allocate_transaction()
+        transaction.create('/pookie', CREATOR_ALL_ACL, Persistent())
+        transaction.check('/foo', stat.version)
+        transaction.delete('/foo', stat.version)
+        transaction.commit()
+
+        try:
+            transaction.create('/pookie', CREATOR_ALL_ACL, Persistent())
+            assert False, 'Transaction already committed - create should have failed'
+        except ValueError:
+            pass
+        try:
+            transaction.check('/foo', stat.version)
+            assert False, 'Transaction already committed - check should have failed'
+        except ValueError:
+            pass
+        try:
+            transaction.delete('/foo', stat.version)
+            assert False, 'Transaction already committed - delete should have failed'
+        except ValueError:
+            pass
+        try:
+            transaction.commit()
+            assert False, 'Transaction already committed - commit should have failed'
+        except ValueError:
+            pass
+
+        stat = z.exists('/pookie')
+        z.delete('/pookie', stat.version)
+        assert not z.exists('/foo')
+
+        # test with
+        z.create('/foo', CREATOR_ALL_ACL, Persistent())
+        with z.allocate_transaction() as t:
+            t.create('/pookie', CREATOR_ALL_ACL, Persistent())
+            t.check('/foo', stat.version)
+            t.delete('/foo', stat.version)
+
+        stat = z.exists('/pookie')
+        z.delete('/pookie', stat.version)
+        assert not z.exists('/foo')
+
+        z.close()
 
 
 class WatcherCounter(Watcher):
