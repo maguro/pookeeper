@@ -14,15 +14,17 @@
  specific language governing permissions and limitations
  under the License.
 """
-
 import atexit
+from distutils.version import StrictVersion
+from functools import wraps
 import logging
 import os
 import unittest
+from nose import SkipTest
 
 from pookeeper import DropableClient34
 from pookeeper.common import ZookeeperCluster
-from toolazydogs.pookeeper import  Watcher
+from toolazydogs.pookeeper import Watcher
 
 
 LOGGER = logging.getLogger(__name__)
@@ -42,6 +44,20 @@ def get_global_cluster():
         CLUSTER = ZookeeperCluster(ZK_HOME)
         atexit.register(lambda cluster: cluster.terminate(), CLUSTER)
     return CLUSTER
+
+
+ZK_VERSION = StrictVersion(os.environ.get("ZOOKEEPER_VERSION"))
+
+def zookeeper_version(minimum_version):
+    def version_tester(method):
+        @wraps(method)
+        def new(self, *args, **kws):
+            if ZK_VERSION < StrictVersion(minimum_version):
+                raise SkipTest('Minimum Zookeeper version %s not met, found %s' % (minimum_version, ZK_VERSION))
+            else:
+                return method(self, *args, **kws)
+        return new
+    return version_tester
 
 
 class ExpiredWatcher(Watcher):

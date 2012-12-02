@@ -25,7 +25,7 @@ from mockito.mockito import verifyNoMoreInteractions
 from nose.plugins.attrib import attr
 
 from pookeeper import DropableClient34
-from pookeeper.harness import PookeeperTestCase
+from pookeeper.harness import PookeeperTestCase, zookeeper_version
 from toolazydogs import pookeeper
 from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher, AuthFailedError, Persistent, PersistentSequential, EphemeralSequential, READ_ACL_UNSAFE
 from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
@@ -465,7 +465,7 @@ class CreateCodeTests(PookeeperTestCase):
 
         z.close()
 
-    @attr('adc')
+    @zookeeper_version('3.4')
     def test_transaction(self):
         z = pookeeper.allocate(self.hosts)
 

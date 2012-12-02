@@ -28,6 +28,7 @@ clean:
 
 test:
 	export ZOOKEEPER_PATH=$(ZOOKEEPER_PATH) && \
+	export ZOOKEEPER_VERSION=$(ZOOKEEPER_VERSION) && \
 	$(BIN)/nosetests -d --with-coverage
 
 html:
