@@ -17,6 +17,7 @@
 import logging
 import random
 
+
 LOGGER = logging.getLogger(__name__)
 
 class RandomHostIterator:
@@ -40,6 +41,9 @@ class RandomHostIterator:
     def next(self):
         self.index += 1
         return self.hosts[self.index % self._len]
+
+    def __repr__(self):
+        return 'RandomHostIterator(%r)' % self.hosts
 
 
 def collect_hosts(hosts):
