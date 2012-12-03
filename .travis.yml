@@ -5,7 +5,7 @@ python:
 
 env:
     - ZOOKEEPER_VERSION=3.3.6
-    - ZOOKEEPER_VERSION=3.4.4
+    - ZOOKEEPER_VERSION=3.4.5
 
 install:
     - make
