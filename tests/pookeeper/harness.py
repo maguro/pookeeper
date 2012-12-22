@@ -20,6 +20,7 @@ from functools import wraps
 import logging
 import os
 import unittest
+import datetime
 from nose import SkipTest
 
 from pookeeper import DropableClient34
@@ -56,7 +57,9 @@ def zookeeper_version(minimum_version):
                 raise SkipTest('Minimum Zookeeper version %s not met, found %s' % (minimum_version, ZK_VERSION))
             else:
                 return method(self, *args, **kws)
+
         return new
+
     return version_tester
 
 
@@ -140,7 +143,23 @@ class PookeeperTestCase(unittest.TestCase, PookeeperTestHarness):
         self.teardown_zookeeper()
 
 
-def add_handler(name, log_level=logging.NOTSET, format='%(name)-12s[%(thread)d]: %(levelname)-8s %(message)s'):
+class DebugFormatter(logging.Formatter):
+    converter = datetime.datetime.fromtimestamp
+
+    def __init__(self, format, datefmt):
+        logging.Formatter.__init__(self, format, datefmt)
+
+    def formatTime(self, record, datefmt=None):
+        ct = self.converter(record.created)
+        if datefmt:
+            s = ct.strftime(datefmt)
+        else:
+            t = ct.strftime('%I:%M:%S.%f')
+            s = '%s.%03d' % (t, record.msecs)
+        return s
+
+
+def add_handler(name, log_level=logging.NOTSET, format='%(asctime)s %(name)-12s[%(threadName)s]: %(levelname)-8s %(message)s', datefmt='%I:%M:%S.%f'):
     logger = logging.getLogger(name)
 
     for handler in logger.handlers:
@@ -148,7 +167,7 @@ def add_handler(name, log_level=logging.NOTSET, format='%(name)-12s[%(thread)d]:
 
     console = logging.StreamHandler()
     console.setLevel(log_level)
-    console.setFormatter(logging.Formatter(format))
+    console.setFormatter(DebugFormatter(format, datefmt))
 
     logger.addHandler(console)
 
