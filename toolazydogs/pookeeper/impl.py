@@ -154,8 +154,8 @@ class ReaderThread(threading.Thread):
 
                             try:
                                 callback(callback_exception)
-                            except Exception as e:
-                                LOGGER.exception(e)
+                            except Exception:
+                                LOGGER.exception('Unforeseen error during callback')
 
                             if isinstance(response, CloseResponse):
                                 LOGGER.debug('Read close response')
@@ -169,8 +169,8 @@ class ReaderThread(threading.Thread):
                     LOGGER.warning('Session timeout for reader')
                     self.s.close()
                     raise
-                except Exception as e:
-                    LOGGER.exception(e)
+                except Exception:
+                    LOGGER.exception('Unforeseen error')
                     raise
         except Exception:
             pass
@@ -184,8 +184,8 @@ def _event_factory(path, watchers, callback):
         for watcher in watchers:
             try:
                 callback(watcher, path)
-            except:
-                LOGGER.exception()
+            except Exception:
+                LOGGER.exception('Unforeseen error during callback')
 
     return event
 
@@ -261,8 +261,7 @@ class WriterThread(threading.Thread):
                 self.client._closed(AUTH_FAILED)
                 break
             except (ConnectionDropped, SessionTimeout, Exception) as e:
-                LOGGER.warning(str(e))
-                LOGGER.exception(e)
+                LOGGER.exception('Need to reconnect')
                 self.client._disconnected()
                 time.sleep(random.random())
             finally:

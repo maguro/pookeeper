@@ -42,7 +42,7 @@ class ConnectResponse:
         self.passwd = input_archive.read_buffer('passwd')
         try:
             self.readOnly = input_archive.read_bool('readOnly')
-        except:
+        except Exception:
             self.readOnly = False
         input_archive.end_record(tag)
 

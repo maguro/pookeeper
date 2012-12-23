@@ -134,8 +134,8 @@ class Client33(object):
 
                     try:
                         notification()
-                    except Exception as e:
-                        LOGGER.exception(e)
+                    except Exception:
+                        LOGGER.exception('Unforeseen error during notification')
             finally:
                 LOGGER.debug('Event loop completed')
                 self._event_thread_completed.set()
@@ -623,11 +623,17 @@ class Client33(object):
 
         while not self._pending.empty():
             _, _, callback, _ = self._pending.get()
-            callback(error)
+            try:
+                callback(error)
+            except Exception:
+                LOGGER.exception('Error while draining')
 
         while not self._queue.empty():
             _, _, callback = self._queue.get()
-            callback(error)
+            try:
+                callback(error)
+            except Exception:
+                LOGGER.exception('Error while draining')
 
 
 class Client34(Client33):
