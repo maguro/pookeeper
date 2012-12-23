@@ -569,7 +569,7 @@ class WatcherCounter(Watcher):
 
 
 def _random_data():
-    size = random.randint(1, 1024)
+    size = random.randint(1, 16)
     data = bytearray([0] * size)
     for i in range(size):
         data[i] = random.randint(0, 255)
