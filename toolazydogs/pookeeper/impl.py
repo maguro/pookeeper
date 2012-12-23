@@ -77,7 +77,7 @@ class ReaderThread(threading.Thread):
     """
 
     def __init__(self, client, s, reader_done, read_timeout):
-        super(ReaderThread, self).__init__()
+        super(ReaderThread, self).__init__(name='reader-%s' % client.id)
         self.client = client
         self.s = s
         self.reader_done = reader_done
@@ -192,7 +192,7 @@ def _event_factory(path, watchers, callback):
 
 class WriterThread(threading.Thread):
     def __init__(self, client):
-        super(WriterThread, self).__init__()
+        super(WriterThread, self).__init__(name='writer-%s' % client.id)
         self.client = client
 
     def run(self):

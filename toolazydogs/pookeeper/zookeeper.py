@@ -50,8 +50,39 @@ from toolazydogs.pookeeper.packets.proto.TransactionResponse import TransactionR
 
 LOGGER = logging.getLogger(__name__)
 
+_ID = 0
+_ID_LOCK = threading.RLock()
+
+def log_wrapper():
+    """ A class method decorator that renames the current thread to identify the current pookeeper client
+    """
+
+    def wrapper(method):
+        def new(self, *args, **kws):
+            global _ID
+            try:
+                name = 'pookeeper-%s' % self.id
+            except AttributeError:
+                with _ID_LOCK:
+                    self.id = _ID
+                    _ID += 1
+                name = 'pookeeper-%s' % self.id
+            current_thread = threading.currentThread()
+            current_name = current_thread.name
+            current_thread.name = name if current_name == 'MainThread' else current_name
+            try:
+                return method(self, *args, **kws)
+            finally:
+                current_thread.name = current_name
+
+        return new
+
+    return wrapper
+
+
 class Client33(object):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
+    @log_wrapper()
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
@@ -109,7 +140,7 @@ class Client33(object):
                 LOGGER.debug('Event loop completed')
                 self._event_thread_completed.set()
 
-        self._event_thread = threading.Thread(target=event_worker)
+        self._event_thread = threading.Thread(target=event_worker, name='event-%s' % self.id)
         self._event_thread.daemon = True
         self._event_thread.start()
 
@@ -119,6 +150,7 @@ class Client33(object):
 
         self._check_state()
 
+    @log_wrapper()
     def close(self):
         """ Close this client object
 
@@ -154,6 +186,7 @@ class Client33(object):
         if call_exception:
             raise call_exception
 
+    @log_wrapper()
     def create(self, path, acls, code, data=None):
         """ Create a node with the given path
 
@@ -221,6 +254,7 @@ class Client33(object):
 
         return response.path[len(self.chroot):]
 
+    @log_wrapper()
     def delete(self, path, version=-1):
         """ Delete the node with the given path
 
@@ -251,6 +285,7 @@ class Client33(object):
 
         self._call(request, None)
 
+    @log_wrapper()
     def exists(self, path, watch=False, watcher=None):
         """ Return the stat of the node of the given path
 
@@ -299,6 +334,7 @@ class Client33(object):
             register_watcher(NoNodeError)
             return None
 
+    @log_wrapper()
     def get_data(self, path, watch=False, watcher=None):
         """ Return the data and the stat of the node of the given path
 
@@ -340,6 +376,7 @@ class Client33(object):
 
         return response.data, response.stat
 
+    @log_wrapper()
     def set_data(self, path, data, version=-1):
         """ Set the data for the node of the given path
 
@@ -376,6 +413,7 @@ class Client33(object):
 
         return response.stat
 
+    @log_wrapper()
     def get_acls(self, path):
         """ Return the ACL and stat of the node of the given path
 
@@ -398,6 +436,7 @@ class Client33(object):
 
         return response.acl, response.stat
 
+    @log_wrapper()
     def set_acls(self, path, acls, version=-1):
         """ Set the ACL for the node of the given path
 
@@ -429,6 +468,7 @@ class Client33(object):
 
         return response.stat
 
+    @log_wrapper()
     def sync(self, path):
         """ Asynchronous sync
 
@@ -446,6 +486,7 @@ class Client33(object):
 
         self._call(request, response)
 
+    @log_wrapper()
     def get_children(self, path, watch=False, watcher=None):
         """ Return the list of the children of the node of the given path
 
@@ -592,8 +633,10 @@ class Client33(object):
 class Client34(Client33):
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
         Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
+    @log_wrapper()
         self.read_only = read_only
 
+    @log_wrapper()
     def allocate_transaction(self):
         """ Allocate a transaction
 
@@ -623,19 +666,24 @@ class _Transaction(object):
         self.committed = False
         self.lock = threading.RLock()
 
+    @log_wrapper()
     def create(self, path, acls, code, data=None):
         self._add(CreateRequest(_prefix_root(self.client.chroot, path), data, acls, code.flags),
                   lambda x: x[len(self.client.chroot):])
 
+    @log_wrapper()
     def delete(self, path, version):
         self._add(DeleteRequest(_prefix_root(self.client.chroot, path), version))
 
+    @log_wrapper()
     def set_data(self, path, data, version):
         self._add(SetDataRequest(_prefix_root(self.client.chroot, path), data, version))
 
+    @log_wrapper()
     def check(self, path, version):
         self._add(CheckVersionRequest(_prefix_root(self.client.chroot, path), version))
 
+    @log_wrapper()
     def commit(self):
         with self.lock:
             self._check_tx_state()
