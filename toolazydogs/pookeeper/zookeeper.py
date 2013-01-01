@@ -81,8 +81,8 @@ def log_wrapper():
 
 
 class Client33(object):
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
     @log_wrapper()
+    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
@@ -637,9 +637,9 @@ class Client33(object):
 
 
 class Client34(Client33):
+    @log_wrapper()
     def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
         Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
-    @log_wrapper()
         self.read_only = read_only
 
     @log_wrapper()
