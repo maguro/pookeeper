@@ -102,7 +102,7 @@ class Client33(object):
         LOGGER.debug('session_passwd: 0x%s', self.session_passwd.encode('hex'))
         LOGGER.debug('session_timeout: %s', self.session_timeout)
         LOGGER.debug('connect_timeout: %s', self.connect_timeout)
-        LOGGER.debug('   len(hosts): %s',  len(self.hosts))
+        LOGGER.debug('   len(hosts): %s', len(self.hosts))
         LOGGER.debug('read_timeout: %s', self.read_timeout)
         LOGGER.debug('auth_data: %s', self.auth_data)
 
@@ -159,6 +159,9 @@ class Client33(object):
         will be removed. The watches left on those nodes (and on their parents)
         will be triggered.
         """
+
+        LOGGER.debug('close()')
+
         with self._state_lock:
             if self.state == AUTH_FAILED:
                 return
@@ -243,10 +246,14 @@ class Client33(object):
             ValueError: if an invalid path is specified
 
         """
+
+        LOGGER.debug('create(%r, %r, %r, %r)', path, acls, code, data)
+
         if not acls:
             raise InvalidACLError('ACLs cannot be None or empty')
         if not code:
             raise ValueError('Creation code cannot be None')
+
         request = CreateRequest(_prefix_root(self.chroot, path), data, acls, code.flags)
         response = CreateResponse(None)
 
@@ -281,6 +288,9 @@ class Client33(object):
             ZookeeperError: if the server returns a non-zero error code
 
         """
+
+        LOGGER.debug('delete(%r, %r)', path, version)
+
         request = DeleteRequest(_prefix_root(self.chroot, path), version)
 
         self._call(request, None)
@@ -310,6 +320,9 @@ class Client33(object):
             ZookeeperError: if the server returns a non-zero error code
 
         """
+
+        LOGGER.debug('exists(%r, %r, %r)', path, watch, watcher)
+
         if watch and watcher:
             LOGGER.warn('Both watch and watcher were specified, registering watcher')
 
@@ -359,6 +372,9 @@ class Client33(object):
 
 
         """
+
+        LOGGER.debug('get_data(%r, %r, %r)', path, watch, watcher)
+
         if watch and watcher:
             LOGGER.warn('Both watch and watcher were specified, registering watcher')
 
@@ -406,6 +422,9 @@ class Client33(object):
             ZookeeperError: if the server returns a non-zero error code
 
         """
+
+        LOGGER.debug('set_data(%r, %r, %r)', path, data, version)
+
         request = SetDataRequest(_prefix_root(self.chroot, path), data, version)
         response = SetDataResponse(None)
 
@@ -429,6 +448,9 @@ class Client33(object):
             ZookeeperError: if the server returns a non-zero error code
 
         """
+
+        LOGGER.debug('get_acls(%r)', path)
+
         request = GetACLRequest(_prefix_root(self.chroot, path))
         response = GetACLResponse(None, None)
 
@@ -461,6 +483,9 @@ class Client33(object):
             InvalidACLError: if the acl is invalid
 
         """
+
+        LOGGER.debug('set_acls(%r, %r, %r)', path, acls, version)
+
         request = SetACLRequest(_prefix_root(self.chroot, path), acls, version)
         response = SetACLResponse(None)
 
@@ -481,6 +506,9 @@ class Client33(object):
             ZookeeperError: if the server returns a non-zero error code
 
         """
+
+        LOGGER.debug('sync(%r)', path)
+
         request = SyncRequest(_prefix_root(self.chroot, path))
         response = SyncResponse(None)
 
@@ -513,6 +541,9 @@ class Client33(object):
             ZookeeperError: if the server returns a non-zero error code
 
         """
+
+        LOGGER.debug('get_children(%r, %r, %r)', path, watch, watcher)
+
         if watch and watcher:
             LOGGER.warn('Both watch and watcher were specified, registering watcher')
 
