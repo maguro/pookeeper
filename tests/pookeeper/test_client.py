@@ -22,13 +22,12 @@ import time
 from mockito import mockito, inorder, matchers
 from mockito.mocking import mock
 from mockito.mockito import verifyNoMoreInteractions
-from nose.plugins.attrib import attr
 
 from pookeeper import DropableClient34
 from pookeeper.harness import PookeeperTestCase, zookeeper_version
-from toolazydogs import pookeeper
-from toolazydogs.pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher, AuthFailedError, Persistent, PersistentSequential, EphemeralSequential, READ_ACL_UNSAFE
-from toolazydogs.pookeeper.impl import ConnectionDroppedForTest
+import pookeeper
+from pookeeper import CREATOR_ALL_ACL, Ephemeral, SessionExpiredError, ConnectionLoss, Watcher, AuthFailedError, Persistent, PersistentSequential, EphemeralSequential, READ_ACL_UNSAFE
+from pookeeper import ConnectionDroppedForTest
 
 
 LOGGER = logging.getLogger('toolazydogs.pookeeper.test')

@@ -25,7 +25,7 @@ from nose import SkipTest
 
 from pookeeper import DropableClient34
 from pookeeper.common import ZookeeperCluster
-from toolazydogs.pookeeper import Watcher
+from pookeeper import Watcher
 
 
 LOGGER = logging.getLogger(__name__)

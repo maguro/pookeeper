@@ -16,7 +16,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.pookeeper.packets.data.Stat import Stat
+from pookeeper.packets.data.Stat import Stat
 
 
 class GetDataResponse:

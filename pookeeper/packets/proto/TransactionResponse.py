@@ -16,15 +16,15 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.pookeeper import EXCEPTIONS
-from toolazydogs.pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
-from toolazydogs.pookeeper.packets.proto.CreateRequest import CreateRequest
-from toolazydogs.pookeeper.packets.proto.CreateResponse import CreateResponse
-from toolazydogs.pookeeper.packets.proto.DeleteRequest import DeleteRequest
-from toolazydogs.pookeeper.packets.proto.ErrorResponse import ErrorResponse
-from toolazydogs.pookeeper.packets.proto.MultiHeader import MultiHeader
-from toolazydogs.pookeeper.packets.proto.SetDataRequest import SetDataRequest
-from toolazydogs.pookeeper.packets.proto.SetDataResponse import SetDataResponse
+from pookeeper import EXCEPTIONS
+from pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
+from pookeeper.packets.proto.CreateRequest import CreateRequest
+from pookeeper.packets.proto.CreateResponse import CreateResponse
+from pookeeper.packets.proto.DeleteRequest import DeleteRequest
+from pookeeper.packets.proto.ErrorResponse import ErrorResponse
+from pookeeper.packets.proto.MultiHeader import MultiHeader
+from pookeeper.packets.proto.SetDataRequest import SetDataRequest
+from pookeeper.packets.proto.SetDataResponse import SetDataResponse
 
 
 class TransactionResponse:
@@ -32,7 +32,6 @@ class TransactionResponse:
         self.results = results
 
     def deserialize(self, input_archive, tag):
-        from toolazydogs.pookeeper.zookeeper import LOGGER
         input_archive.start_record(tag)
         self.results = []
         header = MultiHeader(None, None, None)

@@ -18,9 +18,8 @@ from collections import defaultdict
 import logging
 from posixpath import split
 
-from toolazydogs.pookeeper import packets
-from toolazydogs.pookeeper.packets.data.ACL import ACL
-from toolazydogs.pookeeper.packets.data.Id import Id
+from pookeeper.packets.data.ACL import ACL
+from pookeeper.packets.data.Id import Id
 
 
 __version__ = '0.1.0-dev'
@@ -138,7 +137,7 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
             also be notified for node events
 
     """
-    from toolazydogs.pookeeper.zookeeper import Client34
+    from pookeeper.zookeeper import Client34
 
 
     handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
@@ -197,7 +196,7 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
             also be notified for node events
 
     """
-    from toolazydogs.pookeeper.zookeeper import Client33
+    from pookeeper.zookeeper import Client33
 
 
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
@@ -405,9 +404,9 @@ class Perms(object):
     ADMIN = 16
     ALL = 31
 
-OPEN_ACL_UNSAFE = [ACL(Perms.ALL, packets.data.Id.ANYONE_ID_UNSAFE)]
-CREATOR_ALL_ACL = [ACL(Perms.ALL, packets.data.Id.AUTH_IDS)]
-READ_ACL_UNSAFE = [ACL(Perms.READ, packets.data.Id.ANYONE_ID_UNSAFE)]
+OPEN_ACL_UNSAFE = [ACL(Perms.ALL, pookeeper.packets.data.Id.ANYONE_ID_UNSAFE)]
+CREATOR_ALL_ACL = [ACL(Perms.ALL, pookeeper.packets.data.Id.AUTH_IDS)]
+READ_ACL_UNSAFE = [ACL(Perms.READ, pookeeper.packets.data.Id.ANYONE_ID_UNSAFE)]
 
 def _invalid_error_code(): raise RuntimeError('Invalid error code')
 

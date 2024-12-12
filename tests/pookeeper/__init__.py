@@ -14,8 +14,8 @@
  specific language governing permissions and limitations
  under the License.
 """
-from toolazydogs.pookeeper import CONNECTION_DROPPED_FOR_TEST, CONNECTED_RO, CONNECTED, CONNECTING
-from toolazydogs.pookeeper.zookeeper import Client34
+from pookeeper import CONNECTION_DROPPED_FOR_TEST, CONNECTED_RO, CONNECTED, CONNECTING
+from pookeeper.zookeeper import Client34
 
 
 class DropableClient34(Client34):

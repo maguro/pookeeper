@@ -14,7 +14,7 @@
  specific language governing permissions and limitations
  under the License.
 """
-from toolazydogs.pookeeper.archive import OutputArchive, InputArchive
+from pookeeper.archive import OutputArchive, InputArchive
 
 
 def test_byte():

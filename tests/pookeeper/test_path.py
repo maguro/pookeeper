@@ -14,7 +14,7 @@
  specific language governing permissions and limitations
  under the License.
 """
-from toolazydogs.pookeeper import zkpath
+from pookeeper import zkpath
 
 
 def test_normpath():

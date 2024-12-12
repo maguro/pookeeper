@@ -24,16 +24,16 @@ import threading
 import time
 from time import time as _time
 
-from toolazydogs.pookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST
-from toolazydogs.pookeeper.archive import OutputArchive, InputArchive
-from toolazydogs.pookeeper.packets.proto.AuthPacket import AuthPacket
-from toolazydogs.pookeeper.packets.proto.CloseRequest import CloseRequest
-from toolazydogs.pookeeper.packets.proto.CloseResponse import CloseResponse
-from toolazydogs.pookeeper.packets.proto.ConnectRequest import ConnectRequest
-from toolazydogs.pookeeper.packets.proto.ConnectResponse import ConnectResponse
-from toolazydogs.pookeeper.packets.proto.PingRequest import PingRequest
-from toolazydogs.pookeeper.packets.proto.ReplyHeader import ReplyHeader
-from toolazydogs.pookeeper.packets.proto.WatcherEvent import WatcherEvent
+from pookeeper import EXCEPTIONS, CONNECTING, CLOSED, AuthFailedError, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST
+from pookeeper.archive import OutputArchive, InputArchive
+from pookeeper.packets.proto.AuthPacket import AuthPacket
+from pookeeper.packets.proto.CloseRequest import CloseRequest
+from pookeeper.packets.proto.CloseResponse import CloseResponse
+from pookeeper.packets.proto.ConnectRequest import ConnectRequest
+from pookeeper.packets.proto.ConnectResponse import ConnectResponse
+from pookeeper.packets.proto.PingRequest import PingRequest
+from pookeeper.packets.proto.ReplyHeader import ReplyHeader
+from pookeeper.packets.proto.WatcherEvent import WatcherEvent
 
 
 LOGGER = logging.getLogger(__name__)

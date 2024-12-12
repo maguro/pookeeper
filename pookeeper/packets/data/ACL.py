@@ -16,32 +16,35 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from toolazydogs.pookeeper.packets.data.Stat import Stat
+from pookeeper.packets.data.Id import Id
 
 
-class SetACLResponse:
-    def __init__(self, stat):
-        self.stat = stat
+class ACL:
+    def __init__(self, perms, id):
+        self.perms = perms
+        self.id = id
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        output_archive.write_record(self.stat, 'stat')
+        output_archive.write_int(self.perms, 'perms')
+        output_archive.write_record(self.id, 'id')
         output_archive.end_record(tag)
 
     def deserialize(self, input_archive, tag):
         input_archive.start_record(tag)
-        self.stat = Stat(None, None, None, None, None, None, None, None, None, None, None)
-        input_archive.read_record(self.stat, 'stat')
+        self.perms = input_archive.read_int('perms')
+        self.id = Id(None, None)
+        input_archive.read_record(self.id, 'id')
         input_archive.end_record(tag)
 
     def __repr__(self):
-        return 'SetACLResponse(%r)' % (self.stat)
+        return 'ACL(%r, %r)' % (self.perms, self.id)
 
     def __eq__(self, other):
-        return self.stat == other.stat
+        return self.perms == other.perms and self.id == other.id
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.stat))
+        return hash((self.perms, self.id))

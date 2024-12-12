@@ -20,7 +20,7 @@
 from setuptools import find_packages, setup
 from codecs import open
 
-from toolazydogs.pookeeper import __version__
+from pookeeper import __version__
 
 
 install_requires = [    'mockito',
