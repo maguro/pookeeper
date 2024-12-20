@@ -48,4 +48,3 @@ class Id:
 
 ANYONE_ID_UNSAFE = Id('world', 'anyone')
 AUTH_IDS = Id('world', 'anyone')
-
