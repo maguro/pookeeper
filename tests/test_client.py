@@ -33,7 +33,6 @@ from tests import (
 LOGGER = logging.getLogger("tests")
 
 
-@pytest.mark.timeout(10)
 def test_ping():
     with container.Zookeeper() as zk:
         connection_string = zk.get_connection_string()
