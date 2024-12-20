@@ -29,14 +29,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 def allocate(
-    hosts,
-    session_id=None,
-    session_passwd=None,
-    session_timeout=30.0,
-    auth_data=None,
-    read_only=False,
-    watcher=None,
-    allow_reconnect=True,
+        hosts,
+        session_id=None,
+        session_passwd: bytearray = None,
+        session_timeout=30.0,
+        auth_data=None,
+        read_only=False,
+        watcher=None,
+        allow_reconnect=True,
 ):
     """Create a ZooKeeper client object
 
@@ -97,14 +97,14 @@ def allocate(
 
 
 def allocate_34(
-    hosts,
-    session_id=None,
-    session_passwd=None,
-    session_timeout=30.0,
-    auth_data=None,
-    read_only=False,
-    watcher=None,
-    allow_reconnect=True,
+        hosts,
+        session_id=None,
+        session_passwd: bytearray = None,
+        session_timeout=30.0,
+        auth_data=None,
+        read_only=False,
+        watcher=None,
+        allow_reconnect=True,
 ):
     """Create a ZooKeeper client object
 
@@ -166,9 +166,9 @@ def allocate_34(
     )
 
     if LOGGER.isEnabledFor(logging.DEBUG):
-        encoded_session_password = "0x%s" % session_passwd.encode("hex") if session_passwd else "None"
+        encoded_session_password = ''.join('{:02x}'.format(x) for x in session_passwd) if session_passwd else "None"
         LOGGER.debug(
-            "Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s, %s",
+            "Allocated v3.4 client, %s, %s, 0x%s, %s, %r, %s, %s, %s",
             hosts,
             session_id,
             encoded_session_password,
@@ -183,13 +183,13 @@ def allocate_34(
 
 
 def allocate_33(
-    hosts,
-    session_id=None,
-    session_passwd=None,
-    session_timeout=30.0,
-    auth_data=None,
-    watcher=None,
-    allow_reconnect=True,
+        hosts,
+        session_id=None,
+        session_passwd: bytearray = None,
+        session_timeout=30.0,
+        auth_data=None,
+        watcher=None,
+        allow_reconnect=True,
 ):
     """Create a ZooKeeper client object
 
@@ -242,9 +242,9 @@ def allocate_33(
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
 
     if LOGGER.isEnabledFor(logging.DEBUG):
-        encoded_session_password = "0x%s" % session_passwd.encode("hex") if session_passwd else "None"
+        encoded_session_password = ''.join('{:02x}'.format(x) for x in session_passwd) if session_passwd else "None"
         LOGGER.debug(
-            "Allocated v3.3 client, %s, %s, %s, %s, %r, %s, %s",
+            "Allocated v3.3 client, %s, %s, 0x%s, %s, %r, %s, %s",
             hosts,
             session_id,
             encoded_session_password,
@@ -301,7 +301,7 @@ def create(client, path, ACL=None, code=None):
 
 
 class Watcher:
-    def session_connected(self, session_id, session_password, read_only):
+    def session_connected(self, session_id, session_password: bytearray, read_only):
         pass
 
     def session_expired(self, session_id):

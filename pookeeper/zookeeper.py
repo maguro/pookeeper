@@ -23,12 +23,12 @@ from queue import Queue
 
 from pookeeper import (
     AUTH_FAILED,
+    AuthFailedError,
     CLOSED,
     CONNECTED,
     CONNECTED_RO,
     CONNECTING,
     CONNECTION_DROPPED_FOR_TEST,
-    AuthFailedError,
     ConnectionLoss,
     InvalidACLError,
     NoNodeError,
@@ -97,14 +97,14 @@ def log_wrapper():
 class Client33:
     @log_wrapper()
     def __init__(
-        self,
-        hosts,
-        session_id=None,
-        session_passwd=None,
-        session_timeout=30.0,
-        auth_data=None,
-        watcher: Watcher = None,
-        allow_reconnect=True,
+            self,
+            hosts,
+            session_id=None,
+            session_passwd: bytearray = None,
+            session_timeout=30.0,
+            auth_data=None,
+            watcher: Watcher = None,
+            allow_reconnect=True,
     ):
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
@@ -115,19 +115,23 @@ class Client33:
             self.chroot = ""
 
         self.session_id = session_id
-        self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
+        self.session_passwd = session_passwd if session_passwd else bytearray([0] * 16)
         self.session_timeout = session_timeout
         self.connect_timeout = session_timeout / len(self.hosts)
         self.read_timeout = session_timeout * 2.0 / 3.0
         self.auth_data = auth_data if auth_data else set([])
         self.read_only = False
-        LOGGER.debug("session_id: %s", self.session_id)
-        LOGGER.debug("session_passwd: 0x%s", self.session_passwd.encode("hex"))
-        LOGGER.debug("session_timeout: %s", self.session_timeout)
-        LOGGER.debug("connect_timeout: %s", self.connect_timeout)
-        LOGGER.debug("   len(hosts): %s", len(self.hosts))
-        LOGGER.debug("read_timeout: %s", self.read_timeout)
-        LOGGER.debug("auth_data: %s", self.auth_data)
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            encoded_session_password = ''.join('{:02x}'.format(x) for x in session_passwd) if session_passwd else "None"
+
+            LOGGER.debug("session_id: %s", self.session_id)
+            LOGGER.debug("session_passwd: 0x%s", encoded_session_password)
+            LOGGER.debug("session_timeout: %s", self.session_timeout)
+            LOGGER.debug("connect_timeout: %s", self.connect_timeout)
+            LOGGER.debug("   len(hosts): %s", len(self.hosts))
+            LOGGER.debug("read_timeout: %s", self.read_timeout)
+            LOGGER.debug("auth_data: %s", self.auth_data)
 
         self.allow_reconnect = allow_reconnect
         LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
@@ -174,6 +178,12 @@ class Client33:
 
         self._check_state()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     @log_wrapper()
     def close(self):
         """Close this client object
@@ -208,7 +218,7 @@ class Client33:
         self._event_thread_completed.wait()
 
         self.session_id = None
-        self.session_passwd = str(bytearray([0] * 16))
+        self.session_passwd = bytearray([0] * 16)
 
         if call_exception:
             raise call_exception
@@ -283,7 +293,7 @@ class Client33:
 
         self._call(request, response)
 
-        return response.path[len(self.chroot) :]
+        return response.path[len(self.chroot):]
 
     @log_wrapper()
     def delete(self, path, version=-1):
@@ -613,7 +623,7 @@ class Client33:
             if self.state == CONNECTION_DROPPED_FOR_TEST:
                 raise ConnectionDroppedForTest()
 
-    def _connected(self, session_id, session_passwd, read_only):
+    def _connected(self, session_id, session_passwd: bytearray, read_only):
         with self._state_lock:
             LOGGER.debug("Connected %s", "read-only mode" if read_only else "")
 
@@ -686,15 +696,15 @@ class Client33:
 class Client34(Client33):
     @log_wrapper()
     def __init__(
-        self,
-        hosts,
-        session_id=None,
-        session_passwd=None,
-        session_timeout=30.0,
-        auth_data=None,
-        read_only=False,
-        watcher=None,
-        allow_reconnect=True,
+            self,
+            hosts,
+            session_id=None,
+            session_passwd: bytearray = None,
+            session_timeout=30.0,
+            auth_data=None,
+            read_only=False,
+            watcher=None,
+            allow_reconnect=True,
     ):
         Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
         self.read_only = read_only
@@ -733,7 +743,7 @@ class _Transaction:
     def create(self, path, acls, code, data=None):
         self._add(
             CreateRequest(_prefix_root(self.client.chroot, path), data, acls, code.flags),
-            lambda x: x[len(self.client.chroot) :],
+            lambda x: x[len(self.client.chroot):],
         )
 
     @log_wrapper()

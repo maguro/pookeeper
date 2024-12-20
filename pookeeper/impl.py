@@ -27,11 +27,11 @@ from typing import Callable, Set
 
 from pookeeper import (
     AUTH_FAILED,
+    AuthFailedError,
     CLOSED,
     CONNECTING,
     CONNECTION_DROPPED_FOR_TEST,
     EXCEPTIONS,
-    AuthFailedError,
     Watcher,
 )
 from pookeeper.archive import InputArchive, OutputArchive
@@ -285,11 +285,14 @@ class WriterThread(threading.Thread):
 
     def _connect(self, s, host, port):
         LOGGER.info("Connecting to %s:%s", host, port)
-        LOGGER.debug(
-            "    Using session_id: %r session_passwd: 0x%s",
-            self.client.session_id,
-            self.client.session_passwd.encode("hex"),
-        )
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session_passwd)
+            LOGGER.debug(
+                "    Using session_id: %r session_passwd: 0x%s",
+                self.client.session_id,
+                encoded_session_password,
+            )
 
         s.connect((host, port))
         s.setblocking(0)
@@ -321,14 +324,16 @@ class WriterThread(threading.Thread):
             self.read_timeout = connection_response.timeOut * 2.0 / 3.0 / 1000.0
             self.client.session_passwd = connection_response.passwd
 
-            LOGGER.debug(
-                "Session created, session_id: %r session_passwd: 0x%s",
-                self.client.session_id,
-                self.client.session_passwd.encode("hex"),
-            )
-            LOGGER.debug("    negotiated session timeout: %s", self.client.negotiated_session_timeout)
-            LOGGER.debug("    connect timeout: %s", self.connect_timeout)
-            LOGGER.debug("    read timeout: %s", self.read_timeout)
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session_passwd)
+                LOGGER.debug(
+                    "Session created, session_id: %r session_passwd: 0x%s",
+                    self.client.session_id,
+                    encoded_session_password,
+                )
+                LOGGER.debug("    negotiated session timeout: %s", self.client.negotiated_session_timeout)
+                LOGGER.debug("    connect timeout: %s", self.connect_timeout)
+                LOGGER.debug("    read timeout: %s", self.read_timeout)
 
         self.client._connected(connection_response.sessionId, connection_response.passwd, connection_response.readOnly)
 
@@ -423,7 +428,7 @@ def _read_header_and_body(socket, timeout):
 
 
 def _read(socket, length, timeout):
-    msg = ""
+    msg = bytearray()
     while len(msg) < length:
         if timeout <= 0:
             raise SessionTimeout()
@@ -439,7 +444,7 @@ def _read(socket, length, timeout):
         chunk = ready_to_read[0].recv(length - len(msg))
         if chunk == "":
             raise ConnectionDropped()
-        msg = msg + chunk
+        msg.extend(chunk)
     return msg, timeout
 
 
