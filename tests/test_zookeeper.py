@@ -14,18 +14,19 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+import pytest
 
 from pookeeper import (
-    CREATE_CODES,
-    EXCEPTIONS,
     APIError,
     AuthFailed,
     AuthFailedError,
     BadArgumentsError,
     BadVersionError,
+    CREATE_CODES,
     Connecting,
     ConnectionLoss,
     DataInconsistency,
+    EXCEPTIONS,
     Ephemeral,
     EphemeralSequential,
     InvalidACLError,
@@ -33,8 +34,8 @@ from pookeeper import (
     MarshallingError,
     NoAuthError,
     NoChildrenForEphemeralsError,
-    NodeExistsError,
     NoNodeError,
+    NodeExistsError,
     NotEmptyError,
     OperationTimeoutError,
     Persistent,
@@ -159,16 +160,14 @@ def test_hosts():
     assert count == 17
 
 
-def test_prefix_root():
-    def check_equal(a, b):
-        assert a == b, f"{a} != {b}"
-
-    for root, path, full_path in [
-        ("", "foo", "/foo"),
-        ("", "/foo", "/foo"),
-        ("/", "foo", "/foo"),
-        ("/moo/", "/foo/", "/moo/foo"),
-        ("/moo", "foo/", "/moo/foo"),
-    ]:
-        prefixed_root = _prefix_root(root, path)
-        yield check_equal, prefixed_root, full_path
+@pytest.mark.parametrize("root, path, full_path",
+                         [
+                             ("", "foo", "/foo"),
+                             ("", "/foo", "/foo"),
+                             ("/", "foo", "/foo"),
+                             ("/moo/", "/foo/", "/moo/foo"),
+                             ("/moo", "foo/", "/moo/foo"),
+                         ])
+def test_prefix_root(root, path, full_path):
+    prefixed_root = _prefix_root(root, path)
+    assert prefixed_root == full_path, f"{prefixed_root} != {full_path}"
