@@ -1,51 +1,56 @@
-HERE = $(shell pwd)
-BIN = $(HERE)/bin
-PYTHON = $(BIN)/python
+.PHONY: install
+install: ## Install the poetry environment and install the pre-commit hooks
+	@echo "🚀 Creating virtual environment using pyenv and poetry"
+	@poetry install
+	@ poetry run pre-commit install
+	@poetry shell
 
-PIP_DOWNLOAD_CACHE ?= $(HERE)/.pip_cache
-INSTALL = $(BIN)/pip install
-INSTALL += --download-cache $(PIP_DOWNLOAD_CACHE) -U --use-mirrors
+.PHONY: check
+check: ## Run code quality tools.
+	@echo "🚀 Checking Poetry lock file consistency with 'pyproject.toml': Running poetry check --lock"
+	@poetry check --lock
+	@echo "🚀 Linting code: Running pre-commit"
+	@poetry run pre-commit run -a
+	@echo "🚀 Static type checking: Running mypy"
+	@poetry run mypy
+	@echo "🚀 Checking for obsolete dependencies: Running deptry"
+	@poetry run deptry .
 
-BUILD_DIRS = bin build include lib lib64 man share .Python .pip_cache
+.PHONY: test
+test: ## Test the code with pytest
+	@echo "🚀 Testing code: Running pytest"
+	@poetry run pytest --cov --cov-config=pyproject.toml --cov-report=xml
 
-ZOOKEEPER = $(BIN)/zookeeper
-ZOOKEEPER_VERSION ?= 3.4.5
-ZOOKEEPER_PATH ?= $(ZOOKEEPER)
+.PHONY: build
+build: clean-build ## Build wheel file using poetry
+	@echo "🚀 Creating wheel file"
+	@poetry build
 
-.PHONY: all build clean test zookeeper clean-zookeeper
+.PHONY: clean-build
+clean-build: ## clean build artifacts
+	@rm -rf dist
 
-all: build
+.PHONY: publish
+publish: ## publish a release to pypi.
+	@echo "🚀 Publishing: Dry run."
+	@poetry config pypi-token.pypi $(PYPI_TOKEN)
+	@poetry publish --dry-run
+	@echo "🚀 Publishing."
+	@poetry publish
 
-$(PYTHON):
-	virtualenv --distribute .
+.PHONY: build-and-publish
+build-and-publish: build publish ## Build and publish.
 
-build: $(PYTHON)
-	$(INSTALL) -r requirements.txt
-	$(PYTHON) setup.py develop
+.PHONY: docs-test
+docs-test: ## Test if documentation can be built without warnings or errors
+	@poetry run mkdocs build -s
 
-clean:
-	rm -rf $(BUILD_DIRS)
+.PHONY: docs
+docs: ## Build and serve the documentation
+	@poetry run mkdocs serve
 
-test:
-	export ZOOKEEPER_PATH=$(ZOOKEEPER_PATH) && \
-	export ZOOKEEPER_VERSION=$(ZOOKEEPER_VERSION) && \
-	$(BIN)/nosetests -d --with-coverage
+.PHONY: help
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-html:
-	cd docs && \
-	make html
-
-$(ZOOKEEPER):
-	@echo "Installing Zookeeper"
-	mkdir -p bin
-	cd bin && \
-	curl --progress-bar http://apache.osuosl.org/zookeeper/zookeeper-$(ZOOKEEPER_VERSION)/zookeeper-$(ZOOKEEPER_VERSION).tar.gz | tar -zx
-	mv bin/zookeeper-$(ZOOKEEPER_VERSION) bin/zookeeper
-	cd bin/zookeeper && ant compile
-	chmod a+x bin/zookeeper/bin/zkServer.sh
-	@echo "Finished installing Zookeeper"
-
-zookeeper: $(ZOOKEEPER)
-
-clean-zookeeper:
-	rm -rf zookeeper bin/zookeeper
+.DEFAULT_GOAL := help

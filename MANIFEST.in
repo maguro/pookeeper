@@ -1,6 +1,0 @@
-include README.rst
-include LICENSE.txt
-include NOTICE.txt
-include MANIFEST.in
-recursive-include toolazydogs *
-global-exclude *pyc *pyo
