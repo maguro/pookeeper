@@ -20,23 +20,20 @@
 #  along with txzookeeper.  If not, see <http://www.gnu.org/licenses/>.
 #
 import logging
-
 import os
 import shutil
 import subprocess
 import tempfile
-
-from itertools import chain
 from collections import namedtuple
 from glob import glob
-
+from itertools import chain
 
 LOGGER = logging.getLogger(__name__)
 
 ServerInfo = namedtuple("ServerInfo", "server_id client_port election_port leader_port")
 
 
-class ManagedZooKeeper(object):
+class ManagedZooKeeper:
     """Class to manage the running of a ZooKeeper instance for testing.
 
     Note: no attempt is made to probe the ZooKeeper instance is
@@ -76,52 +73,62 @@ class ManagedZooKeeper(object):
             os.mkdir(data_path)
 
         with open(config_path, "w") as config:
-            config.write("""
+            config.write(
+                """
 tickTime=2000
 dataDir=%s
 clientPort=%s
 maxClientCnxns=0
-""" % (data_path, self.server_info.client_port))
+"""
+                % (data_path, self.server_info.client_port)
+            )
 
         # setup a replicated setup if peers are specified
         if self.peers:
             servers_cfg = []
             for p in chain((self.server_info,), self.peers):
-                servers_cfg.append("server.%s=localhost:%s:%s" % (
-                    p.server_id, p.leader_port, p.election_port))
+                servers_cfg.append("server.%s=localhost:%s:%s" % (p.server_id, p.leader_port, p.election_port))
 
             with open(config_path, "a") as config:
-                config.write("""
+                config.write(
+                    """
 initLimit=4
 syncLimit=2
 %s
-""" % ("\n".join(servers_cfg)))
+"""
+                    % ("\n".join(servers_cfg))
+                )
 
         # Write server ids into datadir
         with open(os.path.join(data_path, "myid"), "w") as myid_file:
             myid_file.write(str(self.server_info.server_id))
 
         with open(log4j_path, "w") as log4j:
-            log4j.write("""
+            log4j.write(
+                """
 # DEFAULT: console appender only
 log4j.rootLogger=INFO, ROLLINGFILE
 log4j.appender.ROLLINGFILE.layout=org.apache.log4j.PatternLayout
 log4j.appender.ROLLINGFILE.layout.ConversionPattern=%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n
 log4j.appender.ROLLINGFILE=org.apache.log4j.RollingFileAppender
 log4j.appender.ROLLINGFILE.Threshold=DEBUG
-log4j.appender.ROLLINGFILE.File=""" + (
-                self.working_path + os.sep + "zookeeper.log\n"))
+log4j.appender.ROLLINGFILE.File="""
+                + (self.working_path + os.sep + "zookeeper.log\n")
+            )
 
         self.process = subprocess.Popen(
-            args=["java",
-                  "-cp", self.classpath,
-                  "-Dreadonlymode.enabled=true",
-                  "-Dzookeeper.log.dir=%s" % log_path,
-                  "-Dzookeeper.root.logger=INFO,CONSOLE",
-                  "-Dlog4j.configuration=file:%s" % log4j_path,
-                  # "-Dlog4j.debug",
-                  "org.apache.zookeeper.server.quorum.QuorumPeerMain",
-                  config_path],
+            args=[
+                "java",
+                "-cp",
+                self.classpath,
+                "-Dreadonlymode.enabled=true",
+                "-Dzookeeper.log.dir=%s" % log_path,
+                "-Dzookeeper.root.logger=INFO,CONSOLE",
+                "-Dlog4j.configuration=file:%s" % log4j_path,
+                # "-Dlog4j.debug",
+                "org.apache.zookeeper.server.quorum.QuorumPeerMain",
+                config_path,
+            ],
         )
         self._running = True
 
@@ -131,20 +138,14 @@ log4j.appender.ROLLINGFILE.File=""" + (
 
         # Two possibilities, as seen in zkEnv.sh:
         # Check for a release - top-level zookeeper-*.jar?
-        jars = glob((os.path.join(
-            self.install_path, 'zookeeper-*.jar')))
+        jars = glob(os.path.join(self.install_path, "zookeeper-*.jar"))
         if jars:
             # Release build (`ant package`)
-            jars.extend(glob(os.path.join(
-                self.install_path,
-                "lib/*.jar")))
+            jars.extend(glob(os.path.join(self.install_path, "lib/*.jar")))
         else:
             # Development build (plain `ant`)
-            jars = glob((os.path.join(
-                self.install_path, 'build/zookeeper-*.jar')))
-            jars.extend(glob(os.path.join(
-                self.install_path,
-                "build/lib/*.jar")))
+            jars = glob(os.path.join(self.install_path, "build/zookeeper-*.jar"))
+            jars.extend(glob(os.path.join(self.install_path, "build/lib/*.jar")))
         return ":".join(jars)
 
     @property
@@ -181,17 +182,18 @@ log4j.appender.ROLLINGFILE.File=""" + (
         # called by at exit handler, reimport to avoid cleanup race.
         import shutil
 
-
         self.stop()
 
         shutil.rmtree(self.working_path)
 
     def __repr__(self):
-        return 'ManagedZooKeeper(%r, %r, %r)' % (self.install_path, self.server_info, self.peers)
+        return "ManagedZooKeeper(%r, %r, %r)" % (self.install_path, self.server_info, self.peers)
+
 
 PORT_INCREMENT = 10
 
-class ZookeeperCluster(object):
+
+class ZookeeperCluster:
     def __init__(self, install_path, size=3, port_offset=20000):
         self._install_path = install_path
         self._servers = []
@@ -213,16 +215,16 @@ class ZookeeperCluster(object):
 
     def __getitem__(self, k):
         if not self._servers:
-            raise ValueError('cluster terminated')
+            raise ValueError("cluster terminated")
         return self._servers[k]
 
     def __iter__(self):
         if not self._servers:
-            raise ValueError('cluster terminated')
+            raise ValueError("cluster terminated")
         return iter(self._servers)
 
     def start(self):
-        LOGGER.debug('Starting cluster of %r', self._servers)
+        LOGGER.debug("Starting cluster of %r", self._servers)
 
         # Zookeeper client expresses a preference for either lower ports or
         # lexicographical ordering of hosts, to ensure that all servers have a
@@ -234,26 +236,25 @@ class ZookeeperCluster(object):
         # the sleep).
         import time
 
-
         time.sleep(5)
 
-        LOGGER.debug('Started cluster')
+        LOGGER.debug("Started cluster")
 
     def stop(self):
-        LOGGER.debug('Stopping cluster of %r', self._servers)
+        LOGGER.debug("Stopping cluster of %r", self._servers)
         for server in self:
             server.stop()
-        LOGGER.debug('Stopped cluster')
+        LOGGER.debug("Stopped cluster")
 
     def terminate(self):
-        LOGGER.debug('Terminating cluster of %r', self._servers)
+        LOGGER.debug("Terminating cluster of %r", self._servers)
         for server in self:
             server.destroy()
         self._servers = []
-        LOGGER.debug('Terminated cluster')
+        LOGGER.debug("Terminated cluster")
 
     def reset(self):
-        LOGGER.debug('Resetting cluster of %r', self._servers)
+        LOGGER.debug("Resetting cluster of %r", self._servers)
         for server in self:
             server.reset()
-        LOGGER.debug('Reset cluster')
+        LOGGER.debug("Reset cluster")

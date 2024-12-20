@@ -14,16 +14,31 @@
  specific language governing permissions and limitations
  under the License.
 """
-from Queue import Queue
-from collections import defaultdict
+
 import logging
 import socket
 import threading
+from collections import defaultdict
+from queue import Queue
 
-from pookeeper import zkpath, SessionExpiredError, AuthFailedError, ConnectionLoss, Watcher, InvalidACLError, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST
-from pookeeper import  NoNodeError, CONNECTING, CLOSED, AUTH_FAILED
+from pookeeper import (
+    AUTH_FAILED,
+    CLOSED,
+    CONNECTED,
+    CONNECTED_RO,
+    CONNECTING,
+    CONNECTION_DROPPED_FOR_TEST,
+    AuthFailedError,
+    ConnectionLoss,
+    InvalidACLError,
+    NoNodeError,
+    SessionExpiredError,
+    Watcher,
+    WatchersDict,
+    zkpath,
+)
 from pookeeper.hosts import collect_hosts
-from pookeeper.impl import WriterThread, PeekableQueue, ConnectionDroppedForTest
+from pookeeper.impl import ConnectionDroppedForTest, PeekableQueue, WriterThread
 from pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from pookeeper.packets.proto.CloseRequest import CloseRequest
 from pookeeper.packets.proto.CloseResponse import CloseResponse
@@ -47,29 +62,28 @@ from pookeeper.packets.proto.SyncResponse import SyncResponse
 from pookeeper.packets.proto.TransactionRequest import TransactionRequest
 from pookeeper.packets.proto.TransactionResponse import TransactionResponse
 
-
 LOGGER = logging.getLogger(__name__)
 
 _ID = 0
 _ID_LOCK = threading.RLock()
 
+
 def log_wrapper():
-    """ A class method decorator that renames the current thread to identify the current pookeeper client
-    """
+    """A class method decorator that renames the current thread to identify the current pookeeper client"""
 
     def wrapper(method):
         def new(self, *args, **kws):
             global _ID
             try:
-                name = 'pookeeper-%s' % self.id
+                name = "pookeeper-%s" % self.id
             except AttributeError:
                 with _ID_LOCK:
                     self.id = _ID
                     _ID += 1
-                name = 'pookeeper-%s' % self.id
-            current_thread = threading.currentThread()
+                name = "pookeeper-%s" % self.id
+            current_thread = threading.current_thread()
             current_name = current_thread.name
-            current_thread.name = name if current_name == 'MainThread' else current_name
+            current_thread.name = name if current_name == "MainThread" else current_name
             try:
                 return method(self, *args, **kws)
             finally:
@@ -80,16 +94,25 @@ def log_wrapper():
     return wrapper
 
 
-class Client33(object):
+class Client33:
     @log_wrapper()
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
+    def __init__(
+        self,
+        hosts,
+        session_id=None,
+        session_passwd=None,
+        session_timeout=30.0,
+        auth_data=None,
+        watcher: Watcher = None,
+        allow_reconnect=True,
+    ):
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
             if not zkpath.isabs(self.chroot):
-                raise ValueError('chroot not absolute')
+                raise ValueError("chroot not absolute")
         else:
-            self.chroot = ''
+            self.chroot = ""
 
         self.session_id = session_id
         self.session_passwd = session_passwd if session_passwd else str(bytearray([0] * 16))
@@ -98,16 +121,16 @@ class Client33(object):
         self.read_timeout = session_timeout * 2.0 / 3.0
         self.auth_data = auth_data if auth_data else set([])
         self.read_only = False
-        LOGGER.debug('session_id: %s', self.session_id)
-        LOGGER.debug('session_passwd: 0x%s', self.session_passwd.encode('hex'))
-        LOGGER.debug('session_timeout: %s', self.session_timeout)
-        LOGGER.debug('connect_timeout: %s', self.connect_timeout)
-        LOGGER.debug('   len(hosts): %s', len(self.hosts))
-        LOGGER.debug('read_timeout: %s', self.read_timeout)
-        LOGGER.debug('auth_data: %s', self.auth_data)
+        LOGGER.debug("session_id: %s", self.session_id)
+        LOGGER.debug("session_passwd: 0x%s", self.session_passwd.encode("hex"))
+        LOGGER.debug("session_timeout: %s", self.session_timeout)
+        LOGGER.debug("connect_timeout: %s", self.connect_timeout)
+        LOGGER.debug("   len(hosts): %s", len(self.hosts))
+        LOGGER.debug("read_timeout: %s", self.read_timeout)
+        LOGGER.debug("auth_data: %s", self.auth_data)
 
         self.allow_reconnect = allow_reconnect
-        LOGGER.debug('allow_reconnect: %s', self.allow_reconnect)
+        LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
 
         self.last_zxid = 0
 
@@ -115,10 +138,10 @@ class Client33(object):
         self._pending = Queue()
 
         self._events = Queue()
-        self._child_watchers = defaultdict(set)
-        self._data_watchers = defaultdict(set)
-        self._exists_watchers = defaultdict(set)
-        self._default_watcher = watcher or Watcher()
+        self._child_watchers: WatchersDict = defaultdict(set)
+        self._data_watchers: WatchersDict = defaultdict(set)
+        self._exists_watchers: WatchersDict = defaultdict(set)
+        self._default_watcher: Watcher = watcher or Watcher()
 
         self.state = CONNECTING
         self._state_lock = threading.RLock()
@@ -130,29 +153,30 @@ class Client33(object):
                 while True:
                     notification = self._events.get()
 
-                    if notification == self: break
+                    if notification == self:
+                        break
 
                     try:
                         notification()
                     except Exception:
-                        LOGGER.exception('Unforeseen error during notification')
+                        LOGGER.exception("Unforeseen error during notification")
             finally:
-                LOGGER.debug('Event loop completed')
+                LOGGER.debug("Event loop completed")
                 self._event_thread_completed.set()
 
-        self._event_thread = threading.Thread(target=event_worker, name='event-%s' % self.id)
+        self._event_thread = threading.Thread(target=event_worker, name="event-%s" % self.id)
         self._event_thread.daemon = True
         self._event_thread.start()
 
         self._writer_thread = WriterThread(self)
-        self._writer_thread.setDaemon(True)
+        self._writer_thread.daemon = True
         self._writer_thread.start()
 
         self._check_state()
 
     @log_wrapper()
     def close(self):
-        """ Close this client object
+        """Close this client object
 
         Once the client is closed, its session becomes invalid. All the
         ephemeral nodes in the ZooKeeper server associated with the session
@@ -160,7 +184,7 @@ class Client33(object):
         will be triggered.
         """
 
-        LOGGER.debug('close()')
+        LOGGER.debug("close()")
 
         with self._state_lock:
             if self.state == AUTH_FAILED:
@@ -175,7 +199,7 @@ class Client33(object):
                 global call_exception
                 call_exception = exception
                 event.set()
-                LOGGER.debug('Closing handler called')
+                LOGGER.debug("Closing handler called")
 
             self._queue.put((CloseRequest(), CloseResponse(), close))
 
@@ -191,7 +215,7 @@ class Client33(object):
 
     @log_wrapper()
     def create(self, path, acls, code, data=None):
-        """ Create a node with the given path
+        """Create a node with the given path
 
         The node data will be the given data, and node acl will be the given
         acl.
@@ -232,7 +256,7 @@ class Client33(object):
 
         Args:
             path: the path for the node
-            acl: the acl for the node
+            acls: the acl for the node
             code: specifying whether the node to be created is ephemeral
                 and/or sequential
             data: optional initial data for the node
@@ -247,23 +271,23 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('create(%r, %r, %r, %r)', path, acls, code, data)
+        LOGGER.debug("create(%r, %r, %r, %r)", path, acls, code, data)
 
         if not acls:
-            raise InvalidACLError('ACLs cannot be None or empty')
+            raise InvalidACLError("ACLs cannot be None or empty")
         if not code:
-            raise ValueError('Creation code cannot be None')
+            raise ValueError("Creation code cannot be None")
 
         request = CreateRequest(_prefix_root(self.chroot, path), data, acls, code.flags)
         response = CreateResponse(None)
 
         self._call(request, response)
 
-        return response.path[len(self.chroot):]
+        return response.path[len(self.chroot) :]
 
     @log_wrapper()
     def delete(self, path, version=-1):
-        """ Delete the node with the given path
+        """Delete the node with the given path
 
         The call will succeed if such a node exists, and the given version
         matches the node's version (if the given version is -1, the default,
@@ -289,7 +313,7 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('delete(%r, %r)', path, version)
+        LOGGER.debug("delete(%r, %r)", path, version)
 
         request = DeleteRequest(_prefix_root(self.chroot, path), version)
 
@@ -297,7 +321,7 @@ class Client33(object):
 
     @log_wrapper()
     def exists(self, path, watch=False, watcher=None):
-        """ Return the stat of the node of the given path
+        """Return the stat of the node of the given path
 
         Return null if no such a node exists.
 
@@ -321,10 +345,10 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('exists(%r, %r, %r)', path, watch, watcher)
+        LOGGER.debug("exists(%r, %r, %r)", path, watch, watcher)
 
         if watch and watcher:
-            LOGGER.warn('Both watch and watcher were specified, registering watcher')
+            LOGGER.warning("Both watch and watcher were specified, registering watcher")
 
         request = ExistsRequest(_prefix_root(self.chroot, path), watch or watcher is not None)
         response = ExistsResponse(None)
@@ -338,9 +362,7 @@ class Client33(object):
                     self._exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
         try:
-            self._call(request,
-                       response,
-                       register_watcher if (watch or watcher) else lambda e: True)
+            self._call(request, response, register_watcher if (watch or watcher) else lambda e: True)
 
             return response.stat if response.stat.czxid != -1 else None
         except NoNodeError:
@@ -349,7 +371,7 @@ class Client33(object):
 
     @log_wrapper()
     def get_data(self, path, watch=False, watcher=None):
-        """ Return the data and the stat of the node of the given path
+        """Return the data and the stat of the node of the given path
 
         If the watch is non-null and the call is successful (no error is
         raised), a watch will be left on the node with the given path. The watch
@@ -373,10 +395,10 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('get_data(%r, %r, %r)', path, watch, watcher)
+        LOGGER.debug("get_data(%r, %r, %r)", path, watch, watcher)
 
         if watch and watcher:
-            LOGGER.warn('Both watch and watcher were specified, registering watcher')
+            LOGGER.warning("Both watch and watcher were specified, registering watcher")
 
         request = GetDataRequest(_prefix_root(self.chroot, path), watch or watcher is not None)
         response = GetDataResponse(None, None)
@@ -386,15 +408,13 @@ class Client33(object):
                 with self._state_lock:
                     self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
-        self._call(request,
-                   response,
-                   register_watcher if (watch or watcher) else lambda e: True)
+        self._call(request, response, register_watcher if (watch or watcher) else lambda e: True)
 
         return response.data, response.stat
 
     @log_wrapper()
     def set_data(self, path, data, version=-1):
-        """ Set the data for the node of the given path
+        """Set the data for the node of the given path
 
         Set the data for the node of the given path if such a node exists and the
         given version matches the version of the node (if the given version is
@@ -423,7 +443,7 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('set_data(%r, %r, %r)', path, data, version)
+        LOGGER.debug("set_data(%r, %r, %r)", path, data, version)
 
         request = SetDataRequest(_prefix_root(self.chroot, path), data, version)
         response = SetDataResponse(None)
@@ -434,7 +454,7 @@ class Client33(object):
 
     @log_wrapper()
     def get_acls(self, path):
-        """ Return the ACL and stat of the node of the given path
+        """Return the ACL and stat of the node of the given path
 
         NoNodeError will be raised if no node with the given path exists.
 
@@ -449,7 +469,7 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('get_acls(%r)', path)
+        LOGGER.debug("get_acls(%r)", path)
 
         request = GetACLRequest(_prefix_root(self.chroot, path))
         response = GetACLResponse(None, None)
@@ -460,7 +480,7 @@ class Client33(object):
 
     @log_wrapper()
     def set_acls(self, path, acls, version=-1):
-        """ Set the ACL for the node of the given path
+        """Set the ACL for the node of the given path
 
         Set the ACL for the node of the given path if such a node exists and the
         given version matches the version of the node. Return the stat of the
@@ -472,7 +492,7 @@ class Client33(object):
 
         Args:
             path: the given path for the node
-            acl: the ACLs to set
+            acls: the ACLs to set
             version: the expected matching version
 
         Returns:
@@ -484,7 +504,7 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('set_acls(%r, %r, %r)', path, acls, version)
+        LOGGER.debug("set_acls(%r, %r, %r)", path, acls, version)
 
         request = SetACLRequest(_prefix_root(self.chroot, path), acls, version)
         response = SetACLResponse(None)
@@ -495,7 +515,7 @@ class Client33(object):
 
     @log_wrapper()
     def sync(self, path):
-        """ Asynchronous sync
+        """Asynchronous sync
 
         Flushes channel between process and leader.
 
@@ -507,7 +527,7 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('sync(%r)', path)
+        LOGGER.debug("sync(%r)", path)
 
         request = SyncRequest(_prefix_root(self.chroot, path))
         response = SyncResponse(None)
@@ -516,7 +536,7 @@ class Client33(object):
 
     @log_wrapper()
     def get_children(self, path, watch=False, watcher=None):
-        """ Return the list of the children of the node of the given path
+        """Return the list of the children of the node of the given path
 
         If the watch is non-null and the call is successful (no error is raised),
         a watch will be left on the node with the given path. The watch will be
@@ -531,7 +551,7 @@ class Client33(object):
         Args:
             path: the given path
             watch: designate the default watcher associated with this connection
-                to be the watcher
+                to be the watcher of the children
             watcher: explicit watcher
 
         Returns:
@@ -542,10 +562,10 @@ class Client33(object):
 
         """
 
-        LOGGER.debug('get_children(%r, %r, %r)', path, watch, watcher)
+        LOGGER.debug("get_children(%r, %r, %r)", path, watch, watcher)
 
         if watch and watcher:
-            LOGGER.warn('Both watch and watcher were specified, registering watcher')
+            LOGGER.warning("Both watch and watcher were specified, registering watcher")
 
         request = GetChildren2Request(_prefix_root(self.chroot, path), watch or watcher is not None)
         response = GetChildren2Response(None, None)
@@ -555,9 +575,7 @@ class Client33(object):
                 with self._state_lock:
                     self._child_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
 
-        self._call(request,
-                   response,
-                   register_watcher if (watch or watcher) else lambda e: True)
+        self._call(request, response, register_watcher if (watch or watcher) else lambda e: True)
 
         return response.children, response.stat
 
@@ -583,10 +601,8 @@ class Client33(object):
             raise call_exception[0]
 
     def _allocate_socket(self):
-        """ Used to allow the replacement of a socket with a mock socket
-        """
+        """Used to allow the replacement of a socket with a mock socket"""
         return socket.socket()
-
 
     def _check_state(self):
         with self._state_lock:
@@ -599,18 +615,19 @@ class Client33(object):
 
     def _connected(self, session_id, session_passwd, read_only):
         with self._state_lock:
-            LOGGER.debug('Connected %s', 'read-only mode' if read_only else '')
+            LOGGER.debug("Connected %s", "read-only mode" if read_only else "")
 
             self.state = CONNECTED_RO if read_only else CONNECTED
             self._events.put(lambda: self._default_watcher.session_connected(session_id, session_passwd, read_only))
 
     def _disconnected(self):
-        assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST])
+        assert self.state in {CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST}
         with self._state_lock:
-            if self.state in set([CONNECTING, CONNECTION_DROPPED_FOR_TEST]): return
+            if self.state in {CONNECTING, CONNECTION_DROPPED_FOR_TEST}:
+                return
 
-            LOGGER.debug('Disconnected %s %s pending calls', self.state, self._pending.qsize())
-            LOGGER.debug('        %s %s queued calls', ' ' * len(str(self.state)), self._queue.qsize())
+            LOGGER.debug("Disconnected %s %s pending calls", self.state, self._pending.qsize())
+            LOGGER.debug("        %s %s queued calls", " " * len(str(self.state)), self._queue.qsize())
 
             self.state = CONNECTING
 
@@ -620,16 +637,15 @@ class Client33(object):
             self._drain(ConnectionLoss())
 
     def _closed(self, state, session_expired=False):
-        """ The party is over.  Time to clean up
-        """
+        """The party is over.  Time to clean up"""
         assert state in set([CLOSED, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST])
         with self._state_lock:
             self.state = state
 
-            LOGGER.debug('CLOSING %s %s pending calls', state, self._pending.qsize())
-            LOGGER.debug('        %s %s queued calls', ' ' * len(str(state)), self._queue.qsize())
+            LOGGER.debug("CLOSING %s %s pending calls", state, self._pending.qsize())
+            LOGGER.debug("        %s %s queued calls", " " * len(str(state)), self._queue.qsize())
             if session_expired:
-                LOGGER.debug('        session expired')
+                LOGGER.debug("        session expired")
 
             # notify watchers
             if state == AUTH_FAILED:
@@ -657,25 +673,35 @@ class Client33(object):
             try:
                 callback(error)
             except Exception:
-                LOGGER.exception('Error while draining')
+                LOGGER.exception("Error while draining")
 
         while not self._queue.empty():
             _, _, callback = self._queue.get()
             try:
                 callback(error)
             except Exception:
-                LOGGER.exception('Error while draining')
+                LOGGER.exception("Error while draining")
 
 
 class Client34(Client33):
     @log_wrapper()
-    def __init__(self, hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
+    def __init__(
+        self,
+        hosts,
+        session_id=None,
+        session_passwd=None,
+        session_timeout=30.0,
+        auth_data=None,
+        read_only=False,
+        watcher=None,
+        allow_reconnect=True,
+    ):
         Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
         self.read_only = read_only
 
     @log_wrapper()
     def allocate_transaction(self):
-        """ Allocate a transaction
+        """Allocate a transaction
 
         A Transaction provides a builder object that can be used to construct
         and commit an atomic set of operations.
@@ -695,7 +721,7 @@ class Client34(Client33):
         return response.results
 
 
-class _Transaction(object):
+class _Transaction:
     def __init__(self, client):
         self.client = client
         self.operations = []
@@ -705,8 +731,10 @@ class _Transaction(object):
 
     @log_wrapper()
     def create(self, path, acls, code, data=None):
-        self._add(CreateRequest(_prefix_root(self.client.chroot, path), data, acls, code.flags),
-                  lambda x: x[len(self.client.chroot):])
+        self._add(
+            CreateRequest(_prefix_root(self.client.chroot, path), data, acls, code.flags),
+            lambda x: x[len(self.client.chroot) :],
+        )
 
     @log_wrapper()
     def delete(self, path, version):
@@ -725,11 +753,11 @@ class _Transaction(object):
         with self.lock:
             self._check_tx_state()
             self.committed = True
-            LOGGER.debug('Committing on %r', self)
+            LOGGER.debug("Committing on %r", self)
 
             results = []
             for e, p in zip(self.client._multi(self.operations), self.post_processors):
-                if isinstance(e, str) or isinstance(e, unicode):
+                if isinstance(e, str) or isinstance(e, str):
                     e = p(e)
                 results.append(e)
 
@@ -739,27 +767,26 @@ class _Transaction(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        """ commit and cleanup accumulated transaction data structures
-        """
+        """commit and cleanup accumulated transaction data structures"""
         if not type:
             self.commit()
 
     def _check_tx_state(self):
         if self.committed:
-            raise ValueError('Transaction already committed')
+            raise ValueError("Transaction already committed")
 
     def _add(self, request, post_processor=None):
         with self.lock:
             self._check_tx_state()
-            LOGGER.debug('Added %r to %r', request, self)
+            LOGGER.debug("Added %r to %r", request, self)
             self.operations.append(request)
             self.post_processors.append(post_processor if post_processor else lambda x: x)
 
 
-def _prefix_root(root, path):
-    """ Prepend a root to a path. """
-    return zkpath.normpath(zkpath.join(_norm_root(root), path.lstrip('/')))
+def _prefix_root(root: str, path: str) -> str:
+    """Prepend a root to a path."""
+    return zkpath.normpath(zkpath.join(_norm_root(root), path.lstrip("/")))
 
 
-def _norm_root(root):
-    return zkpath.normpath(zkpath.join('/', root))
+def _norm_root(root: str) -> str:
+    return zkpath.normpath(zkpath.join("/", root))

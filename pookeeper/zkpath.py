@@ -7,7 +7,7 @@ the `Python Software Foundation License <http://docs.python.org/license.html>`_,
 which can be linked with libraries of other licenses and allows changes to be
 released under different licenses. See LICENSE.txt for a copy of the PSFL.
 
-The original code can be found `here 
+The original code can be found `here
 <http://hg.python.org/releasing/2.7.3/file/7bb96963d067/Lib/posixpath.py>`_.
 
 The following license text refers to changes to the original code:
@@ -28,46 +28,46 @@ The following license text refers to changes to the original code:
  under the License.
 """
 
-def normpath(path):
-    """Normalize path, eliminating double slashes, etc. 
-    """
-    comps = path.split('/')
+
+def normpath(path: str) -> str:
+    """Normalize path, eliminating double slashes, etc."""
+    comps = path.split("/")
     new_comps = []
     for comp in comps:
-        if comp == '':
+        if comp == "":
             continue
-        if comp in ('.', '..'):
-            raise ValueError('relative paths not allowed')
+        if comp in (".", ".."):
+            raise ValueError("relative paths not allowed")
         new_comps.append(comp)
-    slash = u'/' if isinstance(path, unicode) else '/'
+    slash = "/" if isinstance(path, str) else "/"
     new_path = slash.join(new_comps)
-    if path.startswith('/'):
+    if path.startswith("/"):
         return slash + new_path
     return new_path
 
 
-def join(a, *p):
+def join(root: str, *parts: str) -> str:
     """Join two or more pathname components, inserting '/' as needed.
     If any component is an absolute path, all previous path components
     will be discarded.
     """
-    path = a
-    for b in p:
-        if b.startswith('/'):
-            path = b
-        elif path == '' or path.endswith('/'):
-            path +=  b
+    path = root
+    for part in parts:
+        if part.startswith("/"):
+            path = part
+        elif path == "" or path.endswith("/"):
+            path += part
         else:
-            path += '/' + b
+            path += "/" + part
     return path
 
 
-def isabs(s):
-    """Test whether a path is absolute. """
-    return s.startswith('/')
+def isabs(s: str) -> bool:
+    """Test whether a path is absolute."""
+    return s.startswith("/")
 
 
-def basename(p):
+def basename(p: str) -> str:
     """Returns the final component of a pathname"""
-    i = p.rfind('/') + 1
+    i = p.rfind("/") + 1
     return p[i:]

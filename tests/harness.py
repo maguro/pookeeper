@@ -14,19 +14,18 @@
  specific language governing permissions and limitations
  under the License.
 """
+
 import atexit
-from distutils.version import StrictVersion
-from functools import wraps
+import datetime
 import logging
 import os
 import unittest
-import datetime
-from nose import SkipTest
 
-from pookeeper import DropableClient34
-from pookeeper.common import ZookeeperCluster
+from distlib.version import SemanticVersion
+
 from pookeeper import Watcher
-
+from tests import DropableClient34
+from tests.common import ZookeeperCluster
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,27 +39,15 @@ def get_global_cluster():
         ZK_HOME = os.environ.get("ZOOKEEPER_PATH")
         assert ZK_HOME, (
             "ZOOKEEPER_PATH environment variable must be defined.\n "
-            "For deb package installations this is /usr/share/java")
+            "For deb package installations this is /usr/share/java"
+        )
 
         CLUSTER = ZookeeperCluster(ZK_HOME)
         atexit.register(lambda cluster: cluster.terminate(), CLUSTER)
     return CLUSTER
 
 
-ZK_VERSION = StrictVersion(os.environ.get("ZOOKEEPER_VERSION"))
-
-def zookeeper_version(minimum_version):
-    def version_tester(method):
-        @wraps(method)
-        def new(self, *args, **kws):
-            if ZK_VERSION < StrictVersion(minimum_version):
-                raise SkipTest('Minimum Zookeeper version %s not met, found %s' % (minimum_version, ZK_VERSION))
-            else:
-                return method(self, *args, **kws)
-
-        return new
-
-    return version_tester
+ZK_VERSION = SemanticVersion(os.environ.get("ZOOKEEPER_VERSION"))
 
 
 class ExpiredWatcher(Watcher):
@@ -71,7 +58,7 @@ class ExpiredWatcher(Watcher):
         self.lost.set()
 
 
-class PookeeperTestHarness(object):
+class PookeeperTestHarness:
     """Harness for testing code that uses Pookeeper
 
     This object can be used directly or as a mixin. It supports starting
@@ -114,7 +101,6 @@ class PookeeperTestHarness(object):
     def _get_client(self, **kwargs):
         return DropableClient34(self.hosts, **kwargs)
 
-
     def setup_zookeeper(self):
         """Create a ZK cluster and chrooted :class:`Client33`
 
@@ -126,8 +112,7 @@ class PookeeperTestHarness(object):
         self.hosts = self.servers
 
     def teardown_zookeeper(self):
-        """Clean up any ZNodes created during the test
-        """
+        """Clean up any ZNodes created during the test"""
         if self.cluster[0].running:
             self.cluster.stop()
 
@@ -136,8 +121,8 @@ class PookeeperTestCase(unittest.TestCase, PookeeperTestHarness):
     def setUp(self):
         self.setup_zookeeper()
         if DEBUG_LOG:
-            add_handler('pookeeper')
-            add_handler('toolazydogs.pookeeper')
+            add_handler("pookeeper")
+            add_handler("toolazydogs.pookeeper")
 
     def tearDown(self):
         self.teardown_zookeeper()
@@ -154,12 +139,17 @@ class DebugFormatter(logging.Formatter):
         if datefmt:
             s = ct.strftime(datefmt)
         else:
-            t = ct.strftime('%I:%M:%S.%f')
-            s = '%s.%03d' % (t, record.msecs)
+            t = ct.strftime("%I:%M:%S.%f")
+            s = "%s.%03d" % (t, record.msecs)
         return s
 
 
-def add_handler(name, log_level=logging.NOTSET, format='%(asctime)s %(name)-12s[%(threadName)s]: %(levelname)-8s %(message)s', datefmt='%I:%M:%S.%f'):
+def add_handler(
+    name,
+    log_level=logging.NOTSET,
+    format="%(asctime)s %(name)-12s[%(threadName)s]: %(levelname)-8s %(message)s",
+    datefmt="%I:%M:%S.%f",
+):
     logger = logging.getLogger(name)
 
     for handler in logger.handlers:
@@ -170,4 +160,3 @@ def add_handler(name, log_level=logging.NOTSET, format='%(asctime)s %(name)-12s[
     console.setFormatter(DebugFormatter(format, datefmt))
 
     logger.addHandler(console)
-

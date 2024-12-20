@@ -14,20 +14,31 @@
  specific language governing permissions and limitations
  under the License.
 """
-from collections import defaultdict
+
 import logging
+from collections import defaultdict
 from posixpath import split
+from typing import NewType
 
+from pookeeper.packets.data import Id
 from pookeeper.packets.data.ACL import ACL
-from pookeeper.packets.data.Id import Id
 
-
-__version__ = '0.1.0-dev'
+__version__ = "0.1.0-dev"
 
 LOGGER = logging.getLogger(__name__)
 
-def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
-    """ Create a ZooKeeper client object
+
+def allocate(
+    hosts,
+    session_id=None,
+    session_passwd=None,
+    session_timeout=30.0,
+    auth_data=None,
+    read_only=False,
+    watcher=None,
+    allow_reconnect=True,
+):
+    """Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
     connection string containing a comma separated list of host:port pairs,
@@ -80,11 +91,22 @@ def allocate(hosts, session_id=None, session_passwd=None, session_timeout=30.0, 
             also be notified for node events
 
     """
-    return allocate_34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
+    return allocate_34(
+        hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect
+    )
 
 
-def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, read_only=False, watcher=None, allow_reconnect=True):
-    """ Create a ZooKeeper client object
+def allocate_34(
+    hosts,
+    session_id=None,
+    session_passwd=None,
+    session_timeout=30.0,
+    auth_data=None,
+    read_only=False,
+    watcher=None,
+    allow_reconnect=True,
+):
+    """Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
     connection string containing a comma separated list of host:port pairs,
@@ -139,18 +161,37 @@ def allocate_34(hosts, session_id=None, session_passwd=None, session_timeout=30.
     """
     from pookeeper.zookeeper import Client34
 
-
-    handle = Client34(hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect)
+    handle = Client34(
+        hosts, session_id, session_passwd, session_timeout, auth_data, read_only, watcher, allow_reconnect
+    )
 
     if LOGGER.isEnabledFor(logging.DEBUG):
-        encoded_session_password = '0x%s' % session_passwd.encode('hex') if session_passwd else 'None'
-        LOGGER.debug('Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s, %s', hosts, session_id, encoded_session_password, session_timeout, auth_data, read_only, watcher, allow_reconnect)
+        encoded_session_password = "0x%s" % session_passwd.encode("hex") if session_passwd else "None"
+        LOGGER.debug(
+            "Allocated v3.4 client, %s, %s, %s, %s, %r, %s, %s, %s",
+            hosts,
+            session_id,
+            encoded_session_password,
+            session_timeout,
+            auth_data,
+            read_only,
+            watcher,
+            allow_reconnect,
+        )
 
     return handle
 
 
-def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.0, auth_data=None, watcher=None, allow_reconnect=True):
-    """ Create a ZooKeeper client object
+def allocate_33(
+    hosts,
+    session_id=None,
+    session_passwd=None,
+    session_timeout=30.0,
+    auth_data=None,
+    watcher=None,
+    allow_reconnect=True,
+):
+    """Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
     connection string containing a comma separated list of host:port pairs,
@@ -198,34 +239,43 @@ def allocate_33(hosts, session_id=None, session_passwd=None, session_timeout=30.
     """
     from pookeeper.zookeeper import Client33
 
-
     handle = Client33(hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
 
     if LOGGER.isEnabledFor(logging.DEBUG):
-        encoded_session_password = '0x%s' % session_passwd.encode('hex') if session_passwd else 'None'
-        LOGGER.debug('Allocated v3.3 client, %s, %s, %s, %s, %r, %s, %s', hosts, session_id, encoded_session_password, session_timeout, auth_data, watcher, allow_reconnect)
+        encoded_session_password = "0x%s" % session_passwd.encode("hex") if session_passwd else "None"
+        LOGGER.debug(
+            "Allocated v3.3 client, %s, %s, %s, %s, %r, %s, %s",
+            hosts,
+            session_id,
+            encoded_session_password,
+            session_timeout,
+            auth_data,
+            watcher,
+            allow_reconnect,
+        )
 
     return handle
 
 
 def delete(client, path):
-    """ Recursively delete a path
+    """Recursively delete a path
 
     Args:
         client: Pookeeper client
         path: the path to recursively delete
     """
-    if not client.exists(path): return
+    if not client.exists(path):
+        return
 
     children, stat = client.get_children(path)
     for child in children:
-        delete(client, path + '/' + child)
+        delete(client, path + "/" + child)
     client.delete(path, stat.version)
-    LOGGER.debug('Deleted %s', path)
+    LOGGER.debug("Deleted %s", path)
 
 
 def create(client, path, ACL=None, code=None):
-    """ Recursively create a path, creating intermediate nodes as required.
+    """Recursively create a path, creating intermediate nodes as required.
 
     Args:
         client: Pookeeper client
@@ -245,12 +295,12 @@ def create(client, path, ACL=None, code=None):
         create(client, parent, ACL, code)
     try:
         client.create(path, ACL, code)
-        LOGGER.debug('Created %s, ACL: %s, code %s', path, ACL, code)
+        LOGGER.debug("Created %s, ACL: %s, code %s", path, ACL, code)
     except NodeExistsError:
         pass
 
 
-class Watcher(object):
+class Watcher:
     def session_connected(self, session_id, session_password, read_only):
         pass
 
@@ -279,7 +329,11 @@ class Watcher(object):
         pass
 
 
-class State(object):
+Key = NewType("Key", str)
+WatchersDict = defaultdict[Key, set[Watcher]]
+
+
+class State:
     def __init__(self, code, description):
         self.code = code
         self.description = description
@@ -294,37 +348,40 @@ class State(object):
         return self.code
 
     def __repr__(self):
-        return '%s()' % self.__class__.__name__
+        return "%s()" % self.__class__.__name__
 
 
 class Connecting(State):
     def __init__(self):
-        super(Connecting, self).__init__('CONNECTING', 'Connecting')
+        super(Connecting, self).__init__("CONNECTING", "Connecting")
 
 
 class Connected(State):
     def __init__(self):
-        super(Connected, self).__init__('CONNECTED', 'Connected')
+        super(Connected, self).__init__("CONNECTED", "Connected")
 
 
 class ConnectedRO(State):
     def __init__(self):
-        super(ConnectedRO, self).__init__('CONNECTED_RO', 'Connected Read-Only')
+        super(ConnectedRO, self).__init__("CONNECTED_RO", "Connected Read-Only")
 
 
 class AuthFailed(State):
     def __init__(self):
-        super(AuthFailed, self).__init__('AUTH_FAILED', 'Authorization Failed')
+        super(AuthFailed, self).__init__("AUTH_FAILED", "Authorization Failed")
 
 
 class Closed(State):
     def __init__(self):
-        super(Closed, self).__init__('CLOSED', 'Closed')
+        super(Closed, self).__init__("CLOSED", "Closed")
 
 
 class CONNECTION_DROPPED_FOR_TEST(State):
     def __init__(self):
-        super(CONNECTION_DROPPED_FOR_TEST, self).__init__('CONNECTION_DROPPED_FOR_TEST', 'Dropped connection for testing')
+        super(CONNECTION_DROPPED_FOR_TEST, self).__init__(
+            "CONNECTION_DROPPED_FOR_TEST", "Dropped connection for testing"
+        )
+
 
 CONNECTING = Connecting()
 CONNECTED = Connected()
@@ -335,18 +392,22 @@ CONNECTION_DROPPED_FOR_TEST = CONNECTION_DROPPED_FOR_TEST()
 
 CREATE_CODES = {}
 
-class CreateCode(object):
+
+class CreateCode:
     def __repr__(self):
-        return '%s()' % self.__class__.__name__
+        return "%s()" % self.__class__.__name__
 
 
 def _create_code(name, flags, ephemeral, sequential):
     def decorator(klass):
         def attributes(self, name):
-            if name == 'ephemeral': return ephemeral
-            if name == 'sequential': return sequential
-            if name == 'flags': return flags
-            raise AttributeError('Attribute %s not found' % name)
+            if name == "ephemeral":
+                return ephemeral
+            if name == "sequential":
+                return sequential
+            if name == "flags":
+                return flags
+            raise AttributeError("Attribute %s not found" % name)
 
         klass.__getattr__ = attributes
 
@@ -361,42 +422,46 @@ def _create_code(name, flags, ephemeral, sequential):
     return decorator
 
 
-@_create_code('PERSISTENT', 0, False, False)
+@_create_code("PERSISTENT", 0, False, False)
 class Persistent(CreateCode):
     """
     The znode will not be automatically deleted upon client's disconnect.
     """
+
     pass
 
 
-@_create_code('EPHEMERAL', 1, True, False)
+@_create_code("EPHEMERAL", 1, True, False)
 class Ephemeral(CreateCode):
     """
     The znode will be deleted upon the client's disconnect.
     """
+
     pass
 
 
-@_create_code('PERSISTENT_SEQUENTIAL', 2, False, True)
+@_create_code("PERSISTENT_SEQUENTIAL", 2, False, True)
 class PersistentSequential(CreateCode):
     """
     The znode will not be automatically deleted upon client's disconnect,
     and its name will be appended with a monotonically increasing number.
     """
+
     pass
 
 
-@_create_code('EPHEMERAL_SEQUENTIAL', 3, True, True)
+@_create_code("EPHEMERAL_SEQUENTIAL", 3, True, True)
 class EphemeralSequential(CreateCode):
     """
     The znode will be deleted upon the client's disconnect, and its name
     will be appended with a monotonically increasing number.
 
     """
+
     pass
 
 
-class Perms(object):
+class Perms:
     READ = 1
     WRITE = 2
     CREATE = 4
@@ -404,13 +469,18 @@ class Perms(object):
     ADMIN = 16
     ALL = 31
 
-OPEN_ACL_UNSAFE = [ACL(Perms.ALL, pookeeper.packets.data.Id.ANYONE_ID_UNSAFE)]
-CREATOR_ALL_ACL = [ACL(Perms.ALL, pookeeper.packets.data.Id.AUTH_IDS)]
-READ_ACL_UNSAFE = [ACL(Perms.READ, pookeeper.packets.data.Id.ANYONE_ID_UNSAFE)]
 
-def _invalid_error_code(): raise RuntimeError('Invalid error code')
+OPEN_ACL_UNSAFE = [ACL(Perms.ALL, Id.ANYONE_ID_UNSAFE)]
+CREATOR_ALL_ACL = [ACL(Perms.ALL, Id.AUTH_IDS)]
+READ_ACL_UNSAFE = [ACL(Perms.READ, Id.ANYONE_ID_UNSAFE)]
+
+
+def _invalid_error_code():
+    raise RuntimeError("Invalid error code")
+
 
 EXCEPTIONS = defaultdict(_invalid_error_code)
+
 
 def _zookeeper_exception(code):
     def decorator(klass):
@@ -424,7 +494,8 @@ def _zookeeper_exception(code):
 
 
 class ZookeeperError(RuntimeError):
-    """ Parent exception for all zookeeper errors """
+    """Parent exception for all zookeeper errors"""
+
     pass
 
 
@@ -526,4 +597,3 @@ class InvalidACLError(ZookeeperError):
 @_zookeeper_exception(-115)
 class AuthFailedError(ZookeeperError):
     pass
-
