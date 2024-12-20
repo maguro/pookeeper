@@ -10,6 +10,7 @@ copyright: Maintained by <a href="https://toolazydogs.com">Alan Cabrera</a>.
 nav:
   - Home: index.md
   - Modules: modules.md
+  - Tutorials: tutorial.md
 plugins:
   - search
   - mkdocstrings:
