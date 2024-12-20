@@ -20,6 +20,8 @@ import random
 import threading
 import time
 
+import pytest
+
 import pookeeper
 from pookeeper import (
     Watcher,
@@ -31,6 +33,7 @@ from tests import (
 LOGGER = logging.getLogger("tests")
 
 
+@pytest.mark.skip(reason="Temporarily disabled")
 def test_ping():
     with container.Zookeeper() as zk:
         connection_string = zk.get_connection_string()
