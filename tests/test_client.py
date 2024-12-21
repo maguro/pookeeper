@@ -20,14 +20,15 @@ import random
 import threading
 import time
 
-import pytest
+from mockito import inorder, matchers, mock, mockito, verifyNoMoreInteractions
 
 import pookeeper
 from pookeeper import (
     Watcher,
 )
+from pookeeper.impl import ConnectionDroppedForTest
 from tests import (
-    container,
+    DropableClient34, container,
 )
 
 LOGGER = logging.getLogger("tests")
@@ -36,9 +37,6 @@ LOGGER = logging.getLogger("tests")
 def test_ping():
     with container.Zookeeper() as zk:
         connection_string = zk.get_connection_string()
-        assert connection_string is not None
-        assert len(connection_string) != 0
-
         with pookeeper.allocate(connection_string, session_timeout=0.8) as client:
             client.sync("/")
 
@@ -47,212 +45,225 @@ def test_ping():
             client.get_children("/")
 
 
-# class WatcherTests(PookeeperTestCase):
-#     def test_close(self):
-#         watcher = WatcherCounter()
-#         client = pookeeper.allocate(self.hosts, session_timeout=3.0, watcher=watcher)
-#         client.sync("/")
-#         client.close()
-#
-#         assert watcher._session_connected == 1
-#         assert not watcher._session_expired
-#         assert not watcher._auth_failed
-#         assert not watcher._connection_dropped
-#         assert watcher._connection_closed == 1
-#
-#     def test_exists_default_watcher(self):
-#         watcher = mock()
-#         z = pookeeper.allocate(self.hosts, watcher=watcher)
-#
-#         assert not z.exists("/pookie", watch=True)
-#         z.create("/pookie", CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
-#
-#         stat = z.exists("/pookie", watch=True)
-#         stat = z.set_data("/pookie", _random_data(), stat.version)
-#         # This data change will be ignored since the watch has been reset
-#         z.set_data("/pookie", _random_data(), stat.version)
-#         stat = z.exists("/pookie", watch=True)
-#         z.delete("/pookie", stat.version)
-#
-#         z.close()
-#
-#         inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(str), False)
-#         inorder.verify(watcher).node_created("/pookie")
-#         inorder.verify(watcher).data_changed("/pookie")
-#         inorder.verify(watcher).node_deleted("/pookie")
-#         inorder.verify(watcher).connection_closed()
-#         verifyNoMoreInteractions(watcher)
-#
-#     def test_set_data_default_watcher(self):
-#         watcher = mock()
-#         z = pookeeper.allocate(self.hosts, watcher=watcher)
-#
-#         z.create("/pookie", CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
-#
-#         stat = z.exists("/pookie")
-#         stat = z.set_data("/pookie", _random_data(), stat.version)
-#         z.get_data("/pookie", watch=True)
-#         stat = z.set_data("/pookie", _random_data(), stat.version)
-#         z.get_data("/pookie", watch=True)
-#         z.delete("/pookie", stat.version)
-#
-#         z.close()
-#
-#         inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(str), False)
-#         inorder.verify(watcher).data_changed("/pookie")
-#         inorder.verify(watcher).node_deleted("/pookie")
-#         inorder.verify(watcher).connection_closed()
-#         verifyNoMoreInteractions(watcher)
-#
-#     def test_get_children_default_watcher(self):
-#         watcher = mock()
-#         z = pookeeper.allocate(self.hosts, watcher=watcher)
-#
-#         z.create("/pookie", CREATOR_ALL_ACL, Persistent(), data=_random_data())
-#         z.get_children("/pookie", watch=True)
-#
-#         z.create("/pookie/bear", CREATOR_ALL_ACL, Persistent(), data=_random_data())
-#         z.get_children("/pookie", watch=True)
-#
-#         z.set_data("/pookie", _random_data())
-#         z.set_data("/pookie/bear", _random_data())
-#
-#         # One is for when we do and the other is for when we don't chroot
-#         z.get_children("/pookie", watch=True)
-#         z.get_children("/pookie/bear", watch=True)
-#
-#         z.delete("/pookie/bear")
-#         z.delete("/pookie")
-#
-#         z.close()
-#
-#         mockito.verify(watcher).session_connected(matchers.any(int), matchers.any(str), False)
-#         mockito.verify(watcher, times=2).children_changed("/pookie")
-#         mockito.verify(watcher).node_deleted("/pookie/bear")
-#         mockito.verify(watcher).connection_closed()
-#         verifyNoMoreInteractions(watcher)
-#
-#     def test_exists_watcher(self):
-#         watcher = mock()
-#         z = pookeeper.allocate(self.hosts)
-#
-#         assert not z.exists("/pookie", watcher=watcher)
-#         z.create("/pookie", CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
-#
-#         stat = z.exists("/pookie", watcher=watcher)
-#         stat = z.set_data("/pookie", _random_data(), stat.version)
-#         # This data change will be ignored since the watch has been reset
-#         z.set_data("/pookie", _random_data(), stat.version)
-#         stat = z.exists("/pookie", watcher=watcher)
-#         z.delete("/pookie", stat.version)
-#
-#         z.close()
-#
-#         inorder.verify(watcher).node_created("/pookie")
-#         inorder.verify(watcher).data_changed("/pookie")
-#         inorder.verify(watcher).node_deleted("/pookie")
-#         verifyNoMoreInteractions(watcher)
-#
-#     def test_set_data_watcher(self):
-#         watcher = mock()
-#         z = pookeeper.allocate(self.hosts)
-#
-#         z.create("/pookie", CREATOR_ALL_ACL, Ephemeral(), data=_random_data())
-#
-#         stat = z.exists("/pookie")
-#         stat = z.set_data("/pookie", _random_data(), stat.version)
-#         z.get_data("/pookie", watcher=watcher)
-#         stat = z.set_data("/pookie", _random_data(), stat.version)
-#         z.get_data("/pookie", watcher=watcher)
-#         z.delete("/pookie", stat.version)
-#
-#         z.close()
-#
-#         inorder.verify(watcher).data_changed("/pookie")
-#         inorder.verify(watcher).node_deleted("/pookie")
-#         verifyNoMoreInteractions(watcher)
-#
-#     def test_get_children_watcher(self):
-#         watcher = mock()
-#         z = pookeeper.allocate(self.hosts)
-#
-#         z.create("/pookie", CREATOR_ALL_ACL, Persistent(), data=_random_data())
-#         z.get_children("/pookie", watcher=watcher)
-#
-#         z.create("/pookie/bear", CREATOR_ALL_ACL, Persistent(), data=_random_data())
-#         z.get_children("/pookie", watcher=watcher)
-#
-#         z.set_data("/pookie", _random_data())
-#         z.set_data("/pookie/bear", _random_data())
-#
-#         # One is for when we do and the other is for when we don't chroot
-#         z.get_children("/pookie", watcher=watcher)
-#         z.get_children("/pookie/bear", watcher=watcher)
-#
-#         z.delete("/pookie/bear")
-#         z.delete("/pookie")
-#
-#         z.close()
-#
-#         mockito.verify(watcher, times=2).children_changed("/pookie")
-#         mockito.verify(watcher).node_deleted("/pookie/bear")
-#         verifyNoMoreInteractions(watcher)
+def test_close():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = WatcherCounter()
+        client = pookeeper.allocate(connection_string, session_timeout=3.0, watcher=watcher)
+        client.sync("/")
+        client.close()
+
+        assert watcher._session_connected == 1
+        assert not watcher._session_expired
+        assert not watcher._auth_failed
+        assert not watcher._connection_dropped
+        assert watcher._connection_closed == 1
+
+
+def test_exists_default_watcher():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=watcher) as client:
+            assert not client.exists("/pookie", watch=True)
+            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+
+            stat = client.exists("/pookie", watch=True)
+            stat = client.set_data("/pookie", _random_data(), stat.version)
+            # This data change will be ignored since the watch has been reset
+            client.set_data("/pookie", _random_data(), stat.version)
+            stat = client.exists("/pookie", watch=True)
+            client.delete("/pookie", stat.version)
+
+        inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+        inorder.verify(watcher).node_created("/pookie")
+        inorder.verify(watcher).data_changed("/pookie")
+        inorder.verify(watcher).node_deleted("/pookie")
+        inorder.verify(watcher).connection_closed()
+        verifyNoMoreInteractions(watcher)
+
+
+def test_set_data_default_watcher():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=watcher) as client:
+            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+
+            stat = client.exists("/pookie")
+            stat = client.set_data("/pookie", _random_data(), stat.version)
+            client.get_data("/pookie", watch=True)
+            stat = client.set_data("/pookie", _random_data(), stat.version)
+            client.get_data("/pookie", watch=True)
+            client.delete("/pookie", stat.version)
+
+    inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    inorder.verify(watcher).data_changed("/pookie")
+    inorder.verify(watcher).node_deleted("/pookie")
+    inorder.verify(watcher).connection_closed()
+    verifyNoMoreInteractions(watcher)
+
+
+def test_get_children_default_watcher():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=watcher) as client:
+            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.get_children("/pookie", watch=True)
+
+            client.create("/pookie/bear", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.get_children("/pookie", watch=True)
+
+            client.set_data("/pookie", _random_data())
+            client.set_data("/pookie/bear", _random_data())
+
+            # One is for when we do and the other is for when we don't chroot
+            client.get_children("/pookie", watch=True)
+            client.get_children("/pookie/bear", watch=True)
+
+            client.delete("/pookie/bear")
+            client.delete("/pookie")
+
+    mockito.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    mockito.verify(watcher, times=2).children_changed("/pookie")
+    mockito.verify(watcher).node_deleted("/pookie/bear")
+    mockito.verify(watcher).connection_closed()
+    verifyNoMoreInteractions(watcher)
+
+
+def test_exists_watcher():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=watcher) as client:
+            assert not client.exists("/pookie", watcher=watcher)
+            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+
+            stat = client.exists("/pookie", watcher=watcher)
+            stat = client.set_data("/pookie", _random_data(), stat.version)
+            # This data change will be ignored since the watch has been reset
+            client.set_data("/pookie", _random_data(), stat.version)
+            stat = client.exists("/pookie", watcher=watcher)
+            client.delete("/pookie", stat.version)
+
+    inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    inorder.verify(watcher).node_created("/pookie")
+    inorder.verify(watcher).data_changed("/pookie")
+    inorder.verify(watcher).node_deleted("/pookie")
+    inorder.verify(watcher).connection_closed()
+    verifyNoMoreInteractions(watcher)
+
+
+def test_set_data_watcher():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=watcher) as client:
+            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+
+            stat = client.exists("/pookie")
+            stat = client.set_data("/pookie", _random_data(), stat.version)
+            client.get_data("/pookie", watcher=watcher)
+            stat = client.set_data("/pookie", _random_data(), stat.version)
+            client.get_data("/pookie", watcher=watcher)
+            client.delete("/pookie", stat.version)
+
+    inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    inorder.verify(watcher).data_changed("/pookie")
+    inorder.verify(watcher).node_deleted("/pookie")
+    inorder.verify(watcher).connection_closed()
+    verifyNoMoreInteractions(watcher)
+
+
+def test_get_children_watcher():
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=watcher) as client:
+            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.get_children("/pookie", watcher=watcher)
+
+            client.create("/pookie/bear", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.get_children("/pookie", watcher=watcher)
+
+            client.set_data("/pookie", _random_data())
+            client.set_data("/pookie/bear", _random_data())
+
+            # One is for when we do and the other is for when we don't chroot
+            client.get_children("/pookie", watcher=watcher)
+            client.get_children("/pookie/bear", watcher=watcher)
+
+            client.delete("/pookie/bear")
+            client.delete("/pookie")
+
+    mockito.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    mockito.verify(watcher, times=2).children_changed("/pookie")
+    mockito.verify(watcher).node_deleted("/pookie/bear")
+    mockito.verify(watcher).connection_closed()
+    verifyNoMoreInteractions(watcher)
+
+
+def test_session_ping():
+    """Make sure client connection is kept alive by behind the scenes pinging"""
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        with pookeeper.allocate(connection_string, session_timeout=0.8) as client:
+            client.sync("/")
+
+            time.sleep(5)
+
+            client.get_children("/")
+
+
+def test_session_resumption():
+    """Test session reconnect
+
+    disconnect the client by killing the socket, not sending the session
+    disconnect to the server as usual. This allows the test to verify
+    disconnect handling
+    """
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+
+        client = DropableClient34(connection_string)
+        client.create("/e", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral())
+        client.drop()
+
+        try:
+            client.exists("/e")
+            assert False, "Connection dropped for test"
+        except ConnectionDroppedForTest:
+            pass
+
+        resumed_client = pookeeper.allocate(
+            connection_string,
+            session_timeout=client.session_timeout,
+            session_id=client.session_id,
+            session_passwd=client.session_passwd,
+        )
+        stat = resumed_client.exists("/e")
+        assert stat is not None
+
+        resumed_client.close()
+
+        try:
+            resumed_client.exists("/e")
+            assert False, "Should have raised SessionExpiredError"
+        except pookeeper.SessionExpiredError:
+            pass
+
+        with DropableClient34(
+                connection_string,
+                session_timeout=resumed_client.session_timeout,
+                session_id=resumed_client.session_id,
+                session_passwd=resumed_client.session_passwd,
+        ) as new_client:
+            stat = new_client.exists("/e")
+            assert stat is None
 
 
 # class SessionTests(PookeeperTestCase):
-#     def test_ping(self):
-#         """Make sure client connection is kept alive by behind the scenes pinging"""
-#
-#         client = pookeeper.allocate(self.hosts, session_timeout=0.8)
-#         client.sync("/")
-#
-#         time.sleep(5)
-#
-#         client.get_children("/")
-#         client.close()
-#
-#     def test_session_resumption(self):
-#         """Test session reconnect
-#
-#         disconnect the client by killing the socket, not sending the session
-#         disconnect to the server as usual. This allows the test to verify
-#         disconnect handling
-#         """
-#         client = DropableClient34(self.hosts)
-#         client.create("/e", CREATOR_ALL_ACL, Ephemeral())
-#         client.drop()
-#
-#         try:
-#             client.exists("/e")
-#             assert False, "Connection dropped for test"
-#         except ConnectionDroppedForTest:
-#             pass
-#
-#         resumed_client = pookeeper.allocate(
-#             self.hosts,
-#             session_timeout=client.session_timeout,
-#             session_id=client.session_id,
-#             session_passwd=client.session_passwd,
-#         )
-#         stat = resumed_client.exists("/e")
-#         assert stat is not None
-#
-#         resumed_client.close()
-#
-#         try:
-#             resumed_client.exists("/e")
-#             assert False, "Should have raised SessionExpiredError"
-#         except SessionExpiredError:
-#             pass
-#
-#         new_client = self._get_client(
-#             session_timeout=resumed_client.session_timeout,
-#             session_id=resumed_client.session_id,
-#             session_passwd=resumed_client.session_passwd,
-#         )
-#         stat = new_client.exists("/e")
-#         assert stat is None
-#         new_client.close()
 #
 #     def test_session_move(self):
 #         """Test session move
@@ -563,7 +574,7 @@ def test_ping():
 
 class WatcherCounter(Watcher):
     def __init__(
-        self, session_connected=0, session_expired=0, auth_failed=0, connection_dropped=0, connection_closed=0
+            self, session_connected=0, session_expired=0, auth_failed=0, connection_dropped=0, connection_closed=0
     ):
         self._session_connected = session_connected
         self._session_expired = session_expired

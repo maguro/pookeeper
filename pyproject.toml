@@ -98,4 +98,4 @@ skip_empty = true
 
 [tool.coverage.run]
 branch = true
-source = ["cookiecutter_poetry_example"]
+source = ["pookeeper"]
