@@ -20,6 +20,7 @@ import socket
 import threading
 from collections import defaultdict
 from queue import Queue
+from typing import List, Optional, Tuple
 
 from pookeeper import (
     AUTH_FAILED,
@@ -30,6 +31,7 @@ from pookeeper import (
     CONNECTING,
     CONNECTION_DROPPED_FOR_TEST,
     ConnectionLoss,
+    CreateCode,
     InvalidACLError,
     NoNodeError,
     SessionExpiredError,
@@ -39,6 +41,8 @@ from pookeeper import (
 )
 from pookeeper.hosts import collect_hosts
 from pookeeper.impl import ConnectionDroppedForTest, PeekableQueue, WriterThread
+from pookeeper.packets.data.ACL import ACL
+from pookeeper.packets.data.Stat import Stat
 from pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from pookeeper.packets.proto.CloseRequest import CloseRequest
 from pookeeper.packets.proto.CloseResponse import CloseResponse
@@ -224,7 +228,7 @@ class Client33:
             raise call_exception
 
     @log_wrapper()
-    def create(self, path, acls, code, data=None):
+    def create(self, path: str, acls: List[ACL], code: CreateCode, data: bytearray = None) -> str:
         """Create a node with the given path
 
         The node data will be the given data, and node acl will be the given
@@ -296,7 +300,7 @@ class Client33:
         return response.path[len(self.chroot):]
 
     @log_wrapper()
-    def delete(self, path, version=-1):
+    def delete(self, path: str, version: int = -1) -> None:
         """Delete the node with the given path
 
         The call will succeed if such a node exists, and the given version
@@ -330,7 +334,7 @@ class Client33:
         self._call(request, None)
 
     @log_wrapper()
-    def exists(self, path, watch=False, watcher=None):
+    def exists(self, path: str, watch: bool = False, watcher=None) -> Optional[Stat]:
         """Return the stat of the node of the given path
 
         Return null if no such a node exists.
@@ -380,7 +384,7 @@ class Client33:
             return None
 
     @log_wrapper()
-    def get_data(self, path, watch=False, watcher=None):
+    def get_data(self, path: str, watch: bool = False, watcher=None) -> Tuple[bytearray, Stat]:
         """Return the data and the stat of the node of the given path
 
         If the watch is non-null and the call is successful (no error is
@@ -423,7 +427,7 @@ class Client33:
         return response.data, response.stat
 
     @log_wrapper()
-    def set_data(self, path, data, version=-1):
+    def set_data(self, path: str, data: bytearray, version: int = -1) -> Stat:
         """Set the data for the node of the given path
 
         Set the data for the node of the given path if such a node exists and the
@@ -463,7 +467,7 @@ class Client33:
         return response.stat
 
     @log_wrapper()
-    def get_acls(self, path):
+    def get_acls(self, path: str) -> Tuple[List[ACL], Stat]:
         """Return the ACL and stat of the node of the given path
 
         NoNodeError will be raised if no node with the given path exists.
@@ -489,7 +493,7 @@ class Client33:
         return response.acl, response.stat
 
     @log_wrapper()
-    def set_acls(self, path, acls, version=-1):
+    def set_acls(self, path: str, acls: List[ACL], version: int = -1) -> Stat:
         """Set the ACL for the node of the given path
 
         Set the ACL for the node of the given path if such a node exists and the
@@ -545,7 +549,7 @@ class Client33:
         self._call(request, response)
 
     @log_wrapper()
-    def get_children(self, path, watch=False, watcher=None):
+    def get_children(self, path: str, watch: bool = False, watcher=None) -> Tuple[List[str], Stat]:
         """Return the list of the children of the node of the given path
 
         If the watch is non-null and the call is successful (no error is raised),
