@@ -14,19 +14,20 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+from typing import Optional
 
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.waiting_utils import wait_for_logs
 
 
 class Zookeeper(DockerContainer):
-    def __init__(self, image="zookeeper:latest"):
-        super().__init__(image)
-        self.with_bind_ports(2181, 2181)
+    def __init__(self, version: Optional[str] = "latest", port: Optional[int] = 2181):
+        super().__init__(f"zookeeper:{version}")
+        self.with_bind_ports(2181, port)
         self.with_bind_ports(2888, 2888)
         self.with_bind_ports(3888, 3888)
-        self.with_name("zookeper")
-        self.with_kwargs(hostname="zookeper")
+        self.with_name("zookeeper")
+        self.with_kwargs(hostname="zookeeper")
 
     def start(self, timeout=60):
         """Starts the Zookeeper and waits for it to be ready.
