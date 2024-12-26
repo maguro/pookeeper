@@ -63,7 +63,7 @@ def test_state():
     assert Connecting() != AuthFailed()
 
 
-def test_CREATE_CODES():
+def test_create_codes():
     assert isinstance(CREATE_CODES[0], Persistent)
     assert CREATE_CODES[0].flags == 0
     assert CREATE_CODES[0].ephemeral == False
