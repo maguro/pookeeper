@@ -509,6 +509,70 @@ def test_acls():
             assert not z.exists("/pookie")
 
 
+def test_transaction():
+    with container.Zookeeper(version="3.4.13") as zk:
+        connection_string = zk.get_connection_string()
+
+        with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
+
+            # this should fail because /bar does not exist
+            z.create("/foo", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+            stat = z.exists("/foo")
+
+            transaction = z.allocate_transaction()
+            transaction.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+            transaction.check("/foo", stat.version)
+            transaction.check("/bar", stat.version)
+            transaction.delete("/foo", stat.version)
+            transaction.commit()
+
+            assert not z.exists("/pookie")
+            assert z.exists("/foo")
+
+            # this should succeed
+            transaction = z.allocate_transaction()
+            transaction.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+            transaction.check("/foo", stat.version)
+            transaction.delete("/foo", stat.version)
+            transaction.commit()
+
+            try:
+                transaction.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+                assert False, "Transaction already committed - create should have failed"
+            except ValueError:
+                pass
+            try:
+                transaction.check("/foo", stat.version)
+                assert False, "Transaction already committed - check should have failed"
+            except ValueError:
+                pass
+            try:
+                transaction.delete("/foo", stat.version)
+                assert False, "Transaction already committed - delete should have failed"
+            except ValueError:
+                pass
+            try:
+                transaction.commit()
+                assert False, "Transaction already committed - commit should have failed"
+            except ValueError:
+                pass
+
+            stat = z.exists("/pookie")
+            z.delete("/pookie", stat.version)
+            assert not z.exists("/foo")
+
+            # test with
+            z.create("/foo", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+            with z.allocate_transaction() as t:
+                t.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+                t.check("/foo", stat.version)
+                t.delete("/foo", stat.version)
+
+            stat = z.exists("/pookie")
+            z.delete("/pookie", stat.version)
+            assert not z.exists("/foo")
+
+
 # class SessionTests(PookeeperTestCase):
 #
 #     def test_session_move(self):
@@ -545,73 +609,6 @@ def test_acls():
 #
 #         old_client.drop()
 #
-
-
-# class CreateCodeTests(PookeeperTestCase):
-
-
-#     @pytest.mark.skipif(ZK_VERSION < SemanticVersion("3.4.0"), reason="requires python3.3")
-#     def test_transaction(self):
-#         z = pookeeper.allocate(self.hosts)
-#
-#         # this should fail because /bar does not exist
-#         z.create("/foo", CREATOR_ALL_ACL, Persistent())
-#         stat = z.exists("/foo")
-#
-#         transaction = z.allocate_transaction()
-#         transaction.create("/pookie", CREATOR_ALL_ACL, Persistent())
-#         transaction.check("/foo", stat.version)
-#         transaction.check("/bar", stat.version)
-#         transaction.delete("/foo", stat.version)
-#         transaction.commit()
-#
-#         assert not z.exists("/pookie")
-#         assert z.exists("/foo")
-#
-#         # this should succeed
-#         transaction = z.allocate_transaction()
-#         transaction.create("/pookie", CREATOR_ALL_ACL, Persistent())
-#         transaction.check("/foo", stat.version)
-#         transaction.delete("/foo", stat.version)
-#         transaction.commit()
-#
-#         try:
-#             transaction.create("/pookie", CREATOR_ALL_ACL, Persistent())
-#             assert False, "Transaction already committed - create should have failed"
-#         except ValueError:
-#             pass
-#         try:
-#             transaction.check("/foo", stat.version)
-#             assert False, "Transaction already committed - check should have failed"
-#         except ValueError:
-#             pass
-#         try:
-#             transaction.delete("/foo", stat.version)
-#             assert False, "Transaction already committed - delete should have failed"
-#         except ValueError:
-#             pass
-#         try:
-#             transaction.commit()
-#             assert False, "Transaction already committed - commit should have failed"
-#         except ValueError:
-#             pass
-#
-#         stat = z.exists("/pookie")
-#         z.delete("/pookie", stat.version)
-#         assert not z.exists("/foo")
-#
-#         # test with
-#         z.create("/foo", CREATOR_ALL_ACL, Persistent())
-#         with z.allocate_transaction() as t:
-#             t.create("/pookie", CREATOR_ALL_ACL, Persistent())
-#             t.check("/foo", stat.version)
-#             t.delete("/foo", stat.version)
-#
-#         stat = z.exists("/pookie")
-#         z.delete("/pookie", stat.version)
-#         assert not z.exists("/foo")
-#
-#         z.close()
 
 
 class WatcherCounter(Watcher):
