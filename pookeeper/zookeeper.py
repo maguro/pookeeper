@@ -37,6 +37,7 @@ from pookeeper import (
     SessionExpiredError,
     Watcher,
     WatchersDict,
+    events,
     zkpath,
 )
 from pookeeper.hosts import collect_hosts
@@ -99,6 +100,8 @@ def log_wrapper():
 
 
 class Client33:
+    id: int
+
     @log_wrapper()
     def __init__(
             self,
@@ -145,7 +148,6 @@ class Client33:
         self._queue = PeekableQueue()
         self._pending = Queue()
 
-        self._events = Queue()
         self._child_watchers: WatchersDict = defaultdict(set)
         self._data_watchers: WatchersDict = defaultdict(set)
         self._exists_watchers: WatchersDict = defaultdict(set)
@@ -154,27 +156,8 @@ class Client33:
         self.state = CONNECTING
         self._state_lock = threading.RLock()
 
-        self._event_thread_completed = threading.Event()
-
-        def event_worker():
-            try:
-                while True:
-                    notification = self._events.get()
-
-                    if notification == self:
-                        break
-
-                    try:
-                        notification()
-                    except Exception:
-                        LOGGER.exception("Unforeseen error during notification")
-            finally:
-                LOGGER.debug("Event loop completed")
-                self._event_thread_completed.set()
-
-        self._event_thread = threading.Thread(target=event_worker, name="event-%s" % self.id)
-        self._event_thread.daemon = True
-        self._event_thread.start()
+        self._events = events.Events(self.id)
+        self._events.start()
 
         self._writer_thread = WriterThread(self)
         self._writer_thread.daemon = True
@@ -201,7 +184,6 @@ class Client33:
         LOGGER.debug("close()")
 
         call_exception: Optional[BaseException] = None
-        event = threading.Event()
 
         with self._state_lock:
             if self.state == AUTH_FAILED:
@@ -212,14 +194,12 @@ class Client33:
             def close(exception):
                 nonlocal call_exception
                 call_exception = exception
-                event.set()
                 LOGGER.debug("Closing handler called")
 
             self._queue.put((CloseRequest(), CloseResponse(), close))
 
-        event.wait()
-
-        self._event_thread_completed.wait()
+        # the events queue will be stopped when the writer thread closes
+        self._events.join()
 
         self.session_id = None
         self.session_passwd = bytearray([0] * 16)
@@ -678,7 +658,7 @@ class Client33:
 
             # when the event thread encounters the connection on the queue, it
             # will kill itself
-            self._events.put(self)
+            self._events.stop()
 
     def _drain(self, error):
         assert self._state_lock._is_owned()
