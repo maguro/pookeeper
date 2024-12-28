@@ -33,6 +33,7 @@ from pookeeper import (
     CONNECTION_DROPPED_FOR_TEST,
     EXCEPTIONS,
     Watcher,
+    WatcherEventType,
 )
 from pookeeper.archive import InputArchive, OutputArchive
 from pookeeper.packets.proto.AuthPacket import AuthPacket
@@ -110,14 +111,14 @@ class ReaderThread(threading.Thread):
                         path = watcher_event.path
                         watchers = set()
                         with self.client._state_lock:
-                            if watcher_event.type == 1:
+                            if watcher_event.event_type == WatcherEventType.CREATED_EVENT:
                                 LOGGER.debug("Received created event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
                                 self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
-                            elif watcher_event.type == 2:
+                            elif watcher_event.event_type == WatcherEventType.DELETE_EVENT:
                                 LOGGER.debug("Received deleted event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(path, set())
@@ -125,14 +126,14 @@ class ReaderThread(threading.Thread):
                                 LOGGER.debug(" with %r", watchers)
 
                                 self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
-                            elif watcher_event.type == 3:
+                            elif watcher_event.event_type == WatcherEventType.DATA_CHANGED_EVENT:
                                 LOGGER.debug("Received data changed event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
                                 self.client._events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
-                            elif watcher_event.type == 4:
+                            elif watcher_event.event_type == WatcherEventType.CHILD_CHANGED_EVENT:
                                 LOGGER.debug("Received children changed event %s", path)
                                 watchers |= self.client._child_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
@@ -141,7 +142,7 @@ class ReaderThread(threading.Thread):
                                     _event_factory(path, watchers, lambda w, p: w.children_changed(p))
                                 )
                             else:
-                                LOGGER.warn("Received unknown event %r", watcher_event.type)
+                                LOGGER.warn("Received unknown event %r", watcher_event.event_type)
 
                     else:
                         LOGGER.debug("Reading for header %r", header)

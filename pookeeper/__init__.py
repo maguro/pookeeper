@@ -17,6 +17,7 @@
 
 import logging
 from collections import defaultdict
+from enum import IntEnum
 from posixpath import split
 from typing import NewType
 
@@ -298,6 +299,13 @@ def create(client, path, ACL=None, code=None):
         LOGGER.debug("Created %s, ACL: %s, code %s", path, ACL, code)
     except NodeExistsError:
         pass
+
+
+class WatcherEventType(IntEnum):
+    CREATED_EVENT = 1
+    DELETE_EVENT = 2
+    DATA_CHANGED_EVENT = 3
+    CHILD_CHANGED_EVENT = 4
 
 
 class Watcher:

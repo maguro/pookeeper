@@ -16,35 +16,37 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from pookeeper import WatcherEventType
+
 
 class WatcherEvent:
-    def __init__(self, type, state, path):
-        self.type = type
+    def __init__(self, event_type: WatcherEventType, state: int, path: str):
+        self.event_type = event_type
         self.state = state
         self.path = path
 
     def serialize(self, output_archive, tag):
         output_archive.start_record(tag)
-        output_archive.write_int(self.type, 'type')
+        output_archive.write_int(self.event_type, 'type')
         output_archive.write_int(self.state, 'state')
         output_archive.write_string(self.path, 'path')
         output_archive.end_record(tag)
 
     def deserialize(self, input_archive, tag):
         input_archive.start_record(tag)
-        self.type = input_archive.read_int('type')
+        self.event_type = WatcherEventType(input_archive.read_int('type'))
         self.state = input_archive.read_int('state')
         self.path = input_archive.read_string('path')
         input_archive.end_record(tag)
 
     def __repr__(self):
-        return 'WatcherEvent(%r, %r, %r)' % (self.type, self.state, self.path)
+        return 'WatcherEvent(%r, %r, %r)' % (self.event_type, self.state, self.path)
 
     def __eq__(self, other):
-        return self.type == other.type and self.state == other.state and self.path == other.path
+        return self.event_type == other.event_type and self.state == other.state and self.path == other.path
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.type, self.state, self.path))
+        return hash((self.event_type, self.state, self.path))
