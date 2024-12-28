@@ -212,6 +212,7 @@ class WriterThread(threading.Thread):
 
         succeded_in_connecting = False
         for host, port in self.client.hosts:
+            # noinspection PyBroadException
             try:
                 if succeded_in_connecting and not self.client.allow_reconnect:
                     self.client._closed(CONNECTION_DROPPED_FOR_TEST)
@@ -270,8 +271,13 @@ class WriterThread(threading.Thread):
                 LOGGER.warning("Auth failed, closing")
                 self.client._closed(AUTH_FAILED)
                 break
-            except (ConnectionDropped, SessionTimeout, Exception):
-                LOGGER.exception("Need to reconnect")
+            except (ConnectionDropped, SessionTimeout) as e:
+                LOGGER.warning(f"Need to reconnect: {str(e)}")
+                self.client._disconnected()
+                time.sleep(random.random())
+                break
+            except Exception as e:
+                LOGGER.exception(f"Need to reconnect: {str(e)}")
                 self.client._disconnected()
                 time.sleep(random.random())
             finally:

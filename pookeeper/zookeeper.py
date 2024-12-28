@@ -200,17 +200,17 @@ class Client33:
 
         LOGGER.debug("close()")
 
+        call_exception: Optional[BaseException] = None
+        event = threading.Event()
+
         with self._state_lock:
             if self.state == AUTH_FAILED:
                 return
             if self.state == CLOSED:
                 return
 
-            call_exception = None
-            event = threading.Event()
-
             def close(exception):
-                global call_exception
+                nonlocal call_exception
                 call_exception = exception
                 event.set()
                 LOGGER.debug("Closing handler called")
@@ -594,15 +594,16 @@ class Client33:
         return response.children, response.stat
 
     def _call(self, request, response, register_watcher=None):
+        call_exception: Optional[BaseException] = None
+        event = threading.Event()
+
         with self._state_lock:
             self._check_state()
 
-            call_exception = [None]
-            event = threading.Event()
-
             def callback(exception):
+                nonlocal call_exception
                 if exception:
-                    call_exception[0] = exception
+                    call_exception = exception
                 if register_watcher:
                     register_watcher(exception)
 
@@ -611,8 +612,8 @@ class Client33:
             self._queue.put((request, response, callback))
 
         event.wait()
-        if call_exception[0]:
-            raise call_exception[0]
+        if call_exception:
+            raise call_exception
 
     def _allocate_socket(self):
         """Used to allow the replacement of a socket with a mock socket"""
