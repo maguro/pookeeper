@@ -16,11 +16,16 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from typing import Optional
+
 from pookeeper import WatcherEventType
 
 
 class WatcherEvent:
-    def __init__(self, event_type: WatcherEventType, state: int, path: str):
+    def __init__(self,
+                 event_type: Optional[WatcherEventType] = None,
+                 state: Optional[int] = None,
+                 path: Optional[str] = None):
         self.event_type = event_type
         self.state = state
         self.path = path

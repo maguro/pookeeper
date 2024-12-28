@@ -39,4 +39,4 @@ class DropableClient34(Client34):
         assert self.state in set([CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST])
         with self._state_lock:
             self._closed(CONNECTION_DROPPED_FOR_TEST)
-            self._writer_thread.socket.close()
+            self._writer_thread.soc.close()

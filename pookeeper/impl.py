@@ -18,12 +18,13 @@
 import logging
 import random
 import select
+import socket
 import struct
 import threading
 import time
 from queue import Empty, Queue
 from time import time as _time
-from typing import Callable, Set
+from typing import Callable, Optional, Set, Tuple
 
 from pookeeper import (
     AUTH_FAILED,
@@ -52,6 +53,7 @@ class ConnectionDropped(RuntimeError):
     """Internal error for jumping out of loops"""
 
     def __init__(self, *args, **kwargs):
+        # noinspection PyArgumentList
         super(ConnectionDropped, self).__init__(*args, **kwargs)
 
 
@@ -59,6 +61,7 @@ class SessionTimeout(RuntimeError):
     """Internal error for jumping out of loops"""
 
     def __init__(self, *args, **kwargs):
+        # noinspection PyArgumentList
         super(SessionTimeout, self).__init__(*args, **kwargs)
 
 
@@ -66,6 +69,7 @@ class SessionExpired(RuntimeError):
     """Session expired"""
 
     def __init__(self, *args, **kwargs):
+        # noinspection PyArgumentList
         super(SessionExpired, self).__init__(*args, **kwargs)
 
 
@@ -73,6 +77,7 @@ class ConnectionDroppedForTest(RuntimeError):
     """Socket dropped for testing"""
 
     def __init__(self, *args, **kwargs):
+        # noinspection PyArgumentList
         super(ConnectionDroppedForTest, self).__init__(*args, **kwargs)
 
 
@@ -85,10 +90,10 @@ class ReaderThread(threading.Thread):
     cleanup and state orchestration.
     """
 
-    def __init__(self, client, s, reader_done, read_timeout):
+    def __init__(self, client, soc: socket.socket, reader_done: bool, read_timeout: float):
         super(ReaderThread, self).__init__(name="reader-%s" % client.id)
         self.client = client
-        self.s = s
+        self.soc = soc
         self.reader_done = reader_done
         self.read_timeout = read_timeout
 
@@ -97,7 +102,7 @@ class ReaderThread(threading.Thread):
         try:
             while True:
                 try:
-                    header, input_archive = _read_header_and_body(self.s, self.read_timeout)
+                    header, input_archive = _read_header_and_body(self.soc, self.read_timeout)
                     if header.xid == -2:
                         LOGGER.debug("Received PING")
                         continue
@@ -105,7 +110,7 @@ class ReaderThread(threading.Thread):
                         LOGGER.debug("Received AUTH")
                         continue
                     elif header.xid == -1:
-                        watcher_event = WatcherEvent(None, None, None)
+                        watcher_event = WatcherEvent()
                         watcher_event.deserialize(input_archive, "event")
 
                         path = watcher_event.path
@@ -170,7 +175,7 @@ class ReaderThread(threading.Thread):
 
                             if isinstance(response, CloseResponse):
                                 LOGGER.debug("Read close response")
-                                self.s.close()
+                                self.soc.close()
                                 break
 
                 except ConnectionDropped:
@@ -178,19 +183,20 @@ class ReaderThread(threading.Thread):
                     raise
                 except SessionTimeout:
                     LOGGER.warning("Session timeout for reader")
-                    self.s.close()
+                    self.soc.close()
                     raise
-                except Exception:
-                    LOGGER.exception("Unforeseen error")
+                except Exception as e:
+                    LOGGER.exception(f"Unforeseen error: {str(e)}")
                     raise
-        except Exception:
-            pass
+
+        except Exception as e:
+            LOGGER.exception(f"Unforeseen error: {str(e)}")
         finally:
             self.reader_done.set()
             LOGGER.debug("Reader stopped")
 
 
-def _event_factory(path: str, watchers: Set[Watcher], callback: Callable[[Watcher, str], None]):
+def _event_factory(path: str, watchers: Set[Watcher], callback: Callable[[Watcher, str], None]) -> Callable:
     def event():
         for watcher in watchers:
             try:
@@ -202,6 +208,8 @@ def _event_factory(path: str, watchers: Set[Watcher], callback: Callable[[Watche
 
 
 class WriterThread(threading.Thread):
+    soc: socket.socket
+
     def __init__(self, client):
         super(WriterThread, self).__init__(name="writer-%s" % client.id)
         self.client = client
@@ -219,17 +227,17 @@ class WriterThread(threading.Thread):
                     self.client._closed(CONNECTION_DROPPED_FOR_TEST)
                     break
 
-                self.socket = self.client._allocate_socket()
+                self.soc = self.client._allocate_socket()
 
                 self.client._state = CONNECTING
 
-                self._connect(self.socket, host, port)
+                self._connect(self.soc, host, port)
 
                 succeded_in_connecting = True
 
                 reader_done = threading.Event()
 
-                reader_thread = ReaderThread(self.client, self.socket, reader_done, self.read_timeout)
+                reader_thread = ReaderThread(self.client, self.soc, reader_done, self.read_timeout)
                 reader_thread.start()
 
                 xid = 0
@@ -241,7 +249,7 @@ class WriterThread(threading.Thread):
                         xid += 1
                         LOGGER.debug("xid: %r", xid)
 
-                        _submit(self.socket, request, self.connect_timeout, xid)
+                        _submit(self.soc, request, self.connect_timeout, xid)
 
                         if isinstance(request, CloseRequest):
                             LOGGER.debug("Received close request, closing")
@@ -255,7 +263,7 @@ class WriterThread(threading.Thread):
                                 self.client._pending.put((request, response, callback, xid))
                     except Empty:
                         LOGGER.debug("Queue timeout.  Sending PING")
-                        _submit(self.socket, PingRequest(), self.connect_timeout, -2)
+                        _submit(self.soc, PingRequest(), self.connect_timeout, -2)
 
                 LOGGER.debug("Waiting for reader to read close response")
                 reader_done.wait()
@@ -286,11 +294,11 @@ class WriterThread(threading.Thread):
                     # The read thread will close the socket since there
                     # could be a number of pending requests whose response
                     # still needs to be read from the socket.
-                    self.socket.close()
+                    self.soc.close()
 
         LOGGER.debug("Writer stopped")
 
-    def _connect(self, s, host, port):
+    def _connect(self, soc: socket.socket, host: str, port: int) -> None:
         LOGGER.info("Connecting to %s:%s", host, port)
 
         if LOGGER.isEnabledFor(logging.DEBUG):
@@ -301,8 +309,8 @@ class WriterThread(threading.Thread):
                 encoded_session_password,
             )
 
-        s.connect((host, port))
-        s.setblocking(0)
+        soc.connect((host, port))
+        soc.setblocking(0)
 
         LOGGER.debug("Connected")
 
@@ -316,7 +324,7 @@ class WriterThread(threading.Thread):
         )
         connection_response = ConnectResponse(None, None, None, None, None)
 
-        zxid = _invoke(s, self.client.connect_timeout, connect_request, connection_response)
+        zxid = _invoke(soc, self.client.connect_timeout, connect_request, connection_response)
 
         if connection_response.timeOut < 0:
             LOGGER.error("Session expired")
@@ -346,12 +354,12 @@ class WriterThread(threading.Thread):
 
         for scheme, auth in self.client.auth_data:
             ap = AuthPacket(0, scheme, auth)
-            zxid = _invoke(s, self.read_timeout, ap, xid=-4)
+            zxid = _invoke(soc, self.read_timeout, ap, xid=-4)
             if zxid:
                 self.client.last_zxid = zxid
 
 
-def _invoke(socket, timeout, request, response=None, xid=None):
+def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Optional[int] = None) -> int:
     oa = OutputArchive()
     if xid:
         oa.write_int(xid, "xid")
@@ -359,13 +367,13 @@ def _invoke(socket, timeout, request, response=None, xid=None):
         oa.write_int(request.type, "type")
     request.serialize(oa, "NA")
 
-    timeout = _write(socket, struct.pack("!i", len(oa.buffer)), timeout)
-    timeout = _write(socket, oa.buffer, timeout)
+    timeout = _write(soc, struct.pack("!i", len(oa.buffer)), timeout)
+    timeout = _write(soc, oa.buffer, timeout)
 
-    msg, timeout = _read(socket, 4, timeout)
+    msg, timeout = _read(soc, 4, timeout)
     length = struct.unpack_from("!i", msg, 0)[0]
 
-    msg, _ = _read(socket, length, timeout)
+    msg, _ = _read(soc, length, timeout)
     ia = InputArchive(msg)
 
     zxid = None
@@ -388,25 +396,25 @@ def _invoke(socket, timeout, request, response=None, xid=None):
     return zxid
 
 
-def _submit(socket, request, timeout, xid=None):
+def _submit(soc: socket.socket, request, timeout, xid: Optional[int] = None) -> None:
     oa = OutputArchive()
     oa.write_int(xid, "xid")
     if request.type:
         oa.write_int(request.type, "type")
     request.serialize(oa, "NA")
 
-    timeout = _write(socket, struct.pack("!i", len(oa.buffer)), timeout)
-    _write(socket, oa.buffer, timeout)
+    timeout = _write(soc, struct.pack("!i", len(oa.buffer)), timeout)
+    _write(soc, oa.buffer, timeout)
 
 
-def _write(socket, buffer, timeout):
+def _write(soc: socket.socket, buffer: bytes, timeout: float) -> float:
     sent = 0
     while sent < len(buffer):
         if timeout <= 0:
             raise SessionTimeout()
         start = time.time()
 
-        _, ready_to_write, _ = select.select([], [socket], [], timeout)
+        _, ready_to_write, _ = select.select([], [soc], [], timeout)
         end = time.time()
         timeout = timeout - (end - start)
         if not ready_to_write:
@@ -420,12 +428,12 @@ def _write(socket, buffer, timeout):
         return timeout
 
 
-def _read_header_and_body(socket, timeout):
-    msg, timeout = _read(socket, 4, timeout)
+def _read_header_and_body(soc: socket.socket, timeout: float) -> Tuple[ReplyHeader, InputArchive]:
+    msg, timeout = _read(soc, 4, timeout)
 
     length = struct.unpack_from("!i", msg, 0)[0]
 
-    msg, _ = _read(socket, length, timeout)
+    msg, _ = _read(soc, length, timeout)
     input_archive = InputArchive(msg)
 
     header = ReplyHeader(None, None, None)
@@ -434,14 +442,14 @@ def _read_header_and_body(socket, timeout):
     return header, input_archive
 
 
-def _read(socket, length, timeout):
+def _read(soc: socket.socket, length: int, timeout: float) -> Tuple[bytearray, float]:
     msg = bytearray()
     while len(msg) < length:
         if timeout <= 0:
             raise SessionTimeout()
         start = time.time()
 
-        ready_to_read, _, _ = select.select([socket], [], [], timeout)
+        ready_to_read, _, _ = select.select([soc], [], [], timeout)
 
         end = time.time()
         timeout = timeout - (end - start)
