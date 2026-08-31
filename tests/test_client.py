@@ -240,8 +240,8 @@ def test_session_resumption():
         resumed_client = pookeeper.allocate(
             connection_string,
             session_timeout=client.session_timeout,
-            session_id=client.session_id,
-            session_passwd=client.session_passwd,
+            session_id=client.session.id,
+            session_passwd=client.session.passwd,
         )
         stat = resumed_client.exists("/e")
         assert stat is not None
@@ -257,8 +257,8 @@ def test_session_resumption():
         with DropableClient34(
                 connection_string,
                 session_timeout=resumed_client.session_timeout,
-                session_id=resumed_client.session_id,
-                session_passwd=resumed_client.session_passwd,
+                session_id=resumed_client.session.id,
+                session_passwd=resumed_client.session.passwd,
         ) as new_client:
             stat = new_client.exists("/e")
             assert stat is None

@@ -66,6 +66,7 @@ from pookeeper.packets.proto.SyncRequest import SyncRequest
 from pookeeper.packets.proto.SyncResponse import SyncResponse
 from pookeeper.packets.proto.TransactionRequest import TransactionRequest
 from pookeeper.packets.proto.TransactionResponse import TransactionResponse
+from pookeeper.session import Session
 
 LOGGER = logging.getLogger(__name__)
 
@@ -121,8 +122,7 @@ class Client33:
         else:
             self.chroot = ""
 
-        self.session_id = session_id
-        self.session_passwd = session_passwd if session_passwd else bytearray([0] * 16)
+        self.session = Session(session_id=session_id, session_passwd=session_passwd)
         self.session_timeout = session_timeout
         self.connect_timeout = session_timeout / len(self.hosts)
         self.read_timeout = session_timeout * 2.0 / 3.0
@@ -132,7 +132,7 @@ class Client33:
         if LOGGER.isEnabledFor(logging.DEBUG):
             encoded_session_password = ''.join('{:02x}'.format(x) for x in session_passwd) if session_passwd else "None"
 
-            LOGGER.debug("session_id: %s", self.session_id)
+            LOGGER.debug("session_id: %s", self.session.id)
             LOGGER.debug("session_passwd: 0x%s", encoded_session_password)
             LOGGER.debug("session_timeout: %s", self.session_timeout)
             LOGGER.debug("connect_timeout: %s", self.connect_timeout)
@@ -142,8 +142,6 @@ class Client33:
 
         self.allow_reconnect = allow_reconnect
         LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
-
-        self.last_zxid = 0
 
         self._queue = PeekableQueue()
         self._pending = Queue()
@@ -159,7 +157,7 @@ class Client33:
         self._events = events.Events(self.id)
         self._events.start()
 
-        self._writer_thread = WriterThread(self)
+        self._writer_thread = WriterThread(self, self._events)
         self._writer_thread.daemon = True
         self._writer_thread.start()
 
@@ -201,8 +199,7 @@ class Client33:
         # the events queue will be stopped when the writer thread closes
         self._events.join()
 
-        self.session_id = None
-        self.session_passwd = bytearray([0] * 16)
+        self.session = Session()
 
         if call_exception:
             raise call_exception
@@ -646,7 +643,7 @@ class Client33:
             if state == AUTH_FAILED:
                 self._events.put(lambda: self._default_watcher.auth_failed())
             elif session_expired:
-                self._events.put(lambda: self._default_watcher.session_expired(self.session_id))
+                self._events.put(lambda: self._default_watcher.session_expired(self.session.id))
             else:
                 self._events.put(lambda: self._default_watcher.connection_closed())
 

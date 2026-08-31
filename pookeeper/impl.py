@@ -37,6 +37,7 @@ from pookeeper import (
     WatcherEventType,
 )
 from pookeeper.archive import InputArchive, OutputArchive
+from pookeeper.events import Events
 from pookeeper.packets.proto.AuthPacket import AuthPacket
 from pookeeper.packets.proto.CloseRequest import CloseRequest
 from pookeeper.packets.proto.CloseResponse import CloseResponse
@@ -90,9 +91,12 @@ class ReaderThread(threading.Thread):
     cleanup and state orchestration.
     """
 
-    def __init__(self, client, soc: socket.socket, reader_done: bool, read_timeout: float):
+    def __init__(self, client, events: Events,
+                 soc: socket.socket,
+                 reader_done: threading.Event, read_timeout: float):
         super(ReaderThread, self).__init__(name="reader-%s" % client.id)
         self.client = client
+        self.events = events
         self.soc = soc
         self.reader_done = reader_done
         self.read_timeout = read_timeout
@@ -122,7 +126,7 @@ class ReaderThread(threading.Thread):
                                 watchers |= self.client._exists_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
+                                self.events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
                             elif watcher_event.event_type == WatcherEventType.DELETE_EVENT:
                                 LOGGER.debug("Received deleted event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
@@ -130,20 +134,20 @@ class ReaderThread(threading.Thread):
                                 watchers |= self.client._child_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
+                                self.events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
                             elif watcher_event.event_type == WatcherEventType.DATA_CHANGED_EVENT:
                                 LOGGER.debug("Received data changed event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.client._events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
+                                self.events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
                             elif watcher_event.event_type == WatcherEventType.CHILD_CHANGED_EVENT:
                                 LOGGER.debug("Received children changed event %s", path)
                                 watchers |= self.client._child_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.client._events.put(
+                                self.events.put(
                                     _event_factory(path, watchers, lambda w, p: w.children_changed(p))
                                 )
                             else:
@@ -156,7 +160,7 @@ class ReaderThread(threading.Thread):
                             request, response, callback, xid = self.client._pending.get()
 
                             if header.zxid and header.zxid > 0:
-                                self.client.last_zxid = header.zxid
+                                self.client.session.last_zxid = header.zxid
                             if header.xid != xid:
                                 raise RuntimeError("xids do not match, expected %r received %r", xid, header.xid)
 
@@ -210,9 +214,10 @@ def _event_factory(path: str, watchers: Set[Watcher], callback: Callable[[Watche
 class WriterThread(threading.Thread):
     soc: socket.socket
 
-    def __init__(self, client):
+    def __init__(self, client, events: Events):
         super(WriterThread, self).__init__(name="writer-%s" % client.id)
         self.client = client
+        self.events = events
 
     def run(self):
         LOGGER.debug("Starting writer %r", self.client.hosts)
@@ -237,7 +242,7 @@ class WriterThread(threading.Thread):
 
                 reader_done = threading.Event()
 
-                reader_thread = ReaderThread(self.client, self.soc, reader_done, self.read_timeout)
+                reader_thread = ReaderThread(self.client, self.events, self.soc, reader_done, self.read_timeout)
                 reader_thread.start()
 
                 xid = 0
@@ -302,10 +307,10 @@ class WriterThread(threading.Thread):
         LOGGER.info("Connecting to %s:%s", host, port)
 
         if LOGGER.isEnabledFor(logging.DEBUG):
-            encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session_passwd)
+            encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session.passwd)
             LOGGER.debug(
                 "    Using session_id: %r session_passwd: 0x%s",
-                self.client.session_id,
+                self.client.session.id,
                 encoded_session_password,
             )
 
@@ -316,10 +321,10 @@ class WriterThread(threading.Thread):
 
         connect_request = ConnectRequest(
             0,
-            self.client.last_zxid,
+            self.client.session.last_zxid,
             int(self.client.session_timeout * 1000),
-            self.client.session_id or 0,
-            self.client.session_passwd,
+            self.client.session.id or 0,
+            self.client.session.passwd,
             self.client.read_only,
         )
         connection_response = ConnectResponse(None, None, None, None, None)
@@ -328,22 +333,22 @@ class WriterThread(threading.Thread):
 
         if connection_response.timeOut < 0:
             LOGGER.error("Session expired")
-            self.client._events.put(lambda: self.client._default_watcher.session_expired(self.client.session_id))
+            self.events.put(lambda: self.client._default_watcher.session_expired(self.client.session.id))
             raise SessionExpired()
         else:
             if zxid:
-                self.client.last_zxid = zxid
-            self.client.session_id = connection_response.sessionId
+                self.client.session.last_zxid = zxid
+            self.client.session.id = connection_response.sessionId
             self.client.negotiated_session_timeout = connection_response.timeOut / 1000.0
             self.connect_timeout = connection_response.timeOut / len(self.client.hosts) / 1000.0
             self.read_timeout = connection_response.timeOut * 2.0 / 3.0 / 1000.0
-            self.client.session_passwd = connection_response.passwd
+            self.client.session.passwd = connection_response.passwd
 
             if LOGGER.isEnabledFor(logging.DEBUG):
-                encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session_passwd)
+                encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session.passwd)
                 LOGGER.debug(
                     "Session created, session_id: %r session_passwd: 0x%s",
-                    self.client.session_id,
+                    self.client.session.id,
                     encoded_session_password,
                 )
                 LOGGER.debug("    negotiated session timeout: %s", self.client.negotiated_session_timeout)
@@ -356,7 +361,7 @@ class WriterThread(threading.Thread):
             ap = AuthPacket(0, scheme, auth)
             zxid = _invoke(soc, self.read_timeout, ap, xid=-4)
             if zxid:
-                self.client.last_zxid = zxid
+                self.client.session.last_zxid = zxid
 
 
 def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Optional[int] = None) -> int:
