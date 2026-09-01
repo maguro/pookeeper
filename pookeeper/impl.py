@@ -200,6 +200,10 @@ class ReaderThread(threading.Thread):
 
         except Exception as e:
             LOGGER.exception(f"Unforeseen error: {str(e)}")
+            # A dead reader must take the connection down with it: closing the
+            # socket makes the writer's next send fail into its reconnect path,
+            # which drains the pending calls.
+            self.soc.close()
         finally:
             self.reader_done.set()
             LOGGER.debug("Reader stopped")
@@ -469,7 +473,7 @@ def _read(soc: socket.socket, length: int, timeout: float) -> Tuple[bytearray, f
             raise SessionTimeout()
 
         chunk = ready_to_read[0].recv(length - len(msg))
-        if chunk == "":
+        if not chunk:
             raise ConnectionDropped()
         msg.extend(chunk)
     return msg, timeout

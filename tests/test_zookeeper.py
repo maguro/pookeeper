@@ -14,8 +14,16 @@ KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations
 under the License.
 """
+import struct
+import threading
+from queue import Queue
+from types import SimpleNamespace
+
 import pytest
 
+from pookeeper import impl
+from pookeeper.archive import OutputArchive
+from pookeeper.packets.proto.ReplyHeader import ReplyHeader
 from pookeeper import (
     APIError,
     AuthFailed,
@@ -171,3 +179,44 @@ def test_hosts():
 def test_prefix_root(root, path, full_path):
     prefixed_root = _prefix_root(root, path)
     assert prefixed_root == full_path, f"{prefixed_root} != {full_path}"
+
+
+def test_reader_death_closes_socket(monkeypatch):
+    """A reader that dies on an orphan response must drop the connection.
+
+    Closing the socket is what makes the writer's next send fail into its
+    reconnect path; without it the writer keeps pinging a connection nobody
+    reads and every call hangs.
+    """
+
+    class ScriptedSocket:
+        def __init__(self, data):
+            self.data = data
+            self.closed = False
+
+        def recv(self, length):
+            chunk = self.data[:length]
+            self.data = self.data[length:]
+            return chunk
+
+        def close(self):
+            self.closed = True
+
+    # A response with a request xid while nothing is pending: the orphan that
+    # used to leave a zombie connection behind.
+    oa = OutputArchive()
+    ReplyHeader(5, 0, 0).serialize(oa, "header")
+    soc = ScriptedSocket(struct.pack("!i", len(oa.buffer)) + bytes(oa.buffer))
+
+    monkeypatch.setattr(
+        impl, "select", SimpleNamespace(select=lambda r, w, x, timeout: ([soc], [], []))
+    )
+
+    client = SimpleNamespace(id=1, _state_lock=threading.RLock(), _pending=Queue())
+    reader_done = threading.Event()
+    reader = impl.ReaderThread(client, None, soc, reader_done, 5.0)
+
+    reader.run()
+
+    assert soc.closed
+    assert reader_done.is_set()
