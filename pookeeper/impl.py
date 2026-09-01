@@ -151,7 +151,7 @@ class ReaderThread(threading.Thread):
                                     _event_factory(path, watchers, lambda w, p: w.children_changed(p))
                                 )
                             else:
-                                LOGGER.warn("Received unknown event %r", watcher_event.event_type)
+                                LOGGER.warning("Received unknown event %r", watcher_event.event_type)
 
                     else:
                         LOGGER.debug("Reading for header %r", header)
