@@ -441,7 +441,7 @@ def _write(soc: socket.socket, buffer: bytes, timeout: float) -> float:
             raise ConnectionDropped()
         sent += count
 
-        return timeout
+    return timeout
 
 
 def _read_header_and_body(soc: socket.socket, timeout: float) -> Tuple[ReplyHeader, InputArchive]:

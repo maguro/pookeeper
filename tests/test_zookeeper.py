@@ -181,6 +181,31 @@ def test_prefix_root(root, path, full_path):
     assert prefixed_root == full_path, f"{prefixed_root} != {full_path}"
 
 
+def test_write_completes_partial_sends(monkeypatch):
+    """_write must keep sending until the whole buffer is on the wire."""
+
+    class PartialSendSocket:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, buffer):
+            count = min(3, len(buffer))
+            self.sent.append(bytes(buffer[:count]))
+            return count
+
+    soc = PartialSendSocket()
+    monkeypatch.setattr(
+        impl, "select", SimpleNamespace(select=lambda r, w, x, timeout: ([], [soc], []))
+    )
+
+    buffer = b"0123456789"
+    remaining = impl._write(soc, buffer, 5.0)
+
+    assert b"".join(soc.sent) == buffer
+    assert len(soc.sent) == 4
+    assert remaining <= 5.0
+
+
 def test_reader_death_closes_socket(monkeypatch):
     """A reader that dies on an orphan response must drop the connection.
 
