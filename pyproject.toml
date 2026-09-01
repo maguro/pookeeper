@@ -41,6 +41,9 @@ show_error_codes = "True"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+faulthandler_timeout = 180
+timeout = 300
+timeout_method = "signal"
 
 [tool.ruff]
 target-version = "py39"
