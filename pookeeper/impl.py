@@ -157,7 +157,12 @@ class ReaderThread(threading.Thread):
                         LOGGER.debug("Reading for header %r", header)
 
                         with self.client._state_lock:
-                            request, response, callback, xid = self.client._pending.get()
+                            try:
+                                request, response, callback, xid = self.client._pending.get_nowait()
+                            except Empty:
+                                raise RuntimeError(
+                                    "Received response with xid %r but no request is pending" % header.xid
+                                )
 
                             if header.zxid and header.zxid > 0:
                                 self.client.session.last_zxid = header.zxid
@@ -254,18 +259,20 @@ class WriterThread(threading.Thread):
                         xid += 1
                         LOGGER.debug("xid: %r", xid)
 
+                        # Transfer the packet to the queue of pending results
+                        # before sending it.  The response can arrive as soon as
+                        # the write completes, and the reader has to be able to
+                        # find the pending entry when it does.
+                        with self.client._state_lock:
+                            self.client._queue.peek(block=False)
+                            request, response, callback = self.client._queue.get()
+                            self.client._pending.put((request, response, callback, xid))
+
                         _submit(self.soc, request, self.connect_timeout, xid)
 
                         if isinstance(request, CloseRequest):
                             LOGGER.debug("Received close request, closing")
                             writer_done = True
-
-                        # We've successfully sent the packet.  Now we transfer
-                        # it to the queue of pending results.
-                        with self.client._state_lock:
-                            if self.client._queue.peek(block=False):
-                                request, response, callback = self.client._queue.get()
-                                self.client._pending.put((request, response, callback, xid))
                     except Empty:
                         LOGGER.debug("Queue timeout.  Sending PING")
                         _submit(self.soc, PingRequest(), self.connect_timeout, -2)
