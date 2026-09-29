@@ -8,6 +8,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -24,7 +27,6 @@ jobs:
           uv version $RELEASE_VERSION
           make build-and-publish
         env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
           RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
 
   deploy-docs:

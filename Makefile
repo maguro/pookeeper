@@ -32,9 +32,9 @@ clean-build: ## clean build artifacts
 .PHONY: publish
 publish: ## publish a release to pypi.
 	@echo "🚀 Publishing: Dry run."
-	@uv publish --dry-run --token $(PYPI_TOKEN)
+	@uv publish --dry-run
 	@echo "🚀 Publishing."
-	@uv publish --token $(PYPI_TOKEN)
+	@uv publish
 
 .PHONY: build-and-publish
 build-and-publish: build publish ## Build and publish.
