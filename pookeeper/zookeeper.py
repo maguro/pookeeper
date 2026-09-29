@@ -35,6 +35,7 @@ from pookeeper import (
     InvalidACLError,
     NoNodeError,
     SessionExpiredError,
+    State,
     Watcher,
     WatchersDict,
     events,
@@ -108,10 +109,10 @@ class Client33:
             self,
             hosts,
             session_id=None,
-            session_passwd: bytearray = None,
+            session_passwd: Optional[bytearray] = None,
             session_timeout=30.0,
             auth_data=None,
-            watcher: Watcher = None,
+            watcher: Optional[Watcher] = None,
             allow_reconnect=True,
     ):
         self.hosts, chroot = collect_hosts(hosts)
@@ -144,14 +145,14 @@ class Client33:
         LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
 
         self._queue = PeekableQueue()
-        self._pending = Queue()
+        self._pending: Queue = Queue()
 
         self._child_watchers: WatchersDict = defaultdict(set)
         self._data_watchers: WatchersDict = defaultdict(set)
         self._exists_watchers: WatchersDict = defaultdict(set)
         self._default_watcher: Watcher = watcher or Watcher()
 
-        self.state = CONNECTING
+        self.state: State = CONNECTING
         self._state_lock = threading.RLock()
 
         self._events = events.Events(self.id)
@@ -205,7 +206,7 @@ class Client33:
             raise call_exception
 
     @log_wrapper()
-    def create(self, path: str, acls: List[ACL], code: CreateCode, data: bytearray = None) -> str:
+    def create(self, path: str, acls: List[ACL], code: CreateCode, data: Optional[bytearray] = None) -> str:
         """Create a node with the given path
 
         The node data will be the given data, and node acl will be the given
@@ -658,7 +659,7 @@ class Client33:
             self._events.stop()
 
     def _drain(self, error):
-        assert self._state_lock._is_owned()
+        assert self._state_lock._is_owned()  # type: ignore[attr-defined]
 
         while not self._pending.empty():
             _, _, callback, _ = self._pending.get()
@@ -681,7 +682,7 @@ class Client34(Client33):
             self,
             hosts,
             session_id=None,
-            session_passwd: bytearray = None,
+            session_passwd: Optional[bytearray] = None,
             session_timeout=30.0,
             auth_data=None,
             read_only=False,

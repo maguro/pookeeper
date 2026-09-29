@@ -28,7 +28,7 @@ class Events:
 
     def __init__(self, client_id: int):
         self.client_id = client_id
-        self._events = Queue()
+        self._events: Queue = Queue()
 
     def start(self):
         self._event_thread_completed = threading.Event()
@@ -75,7 +75,7 @@ class Events:
         """
         return self._event_thread_completed.wait(timeout)
 
-    def put(self, item: Callable, block: bool = True, timeout: int = None):
+    def put(self, item: Callable, block: bool = True, timeout: Optional[int] = None):
         """Put an event notification into the queue.
 
         If optional args 'block' is true and 'timeout' is None (the default),

@@ -37,21 +37,21 @@ class TransactionResponse:
         header = MultiHeader(None, None, None)
         while not header.done:
             if header.type == CreateRequest.type:
-                response = CreateResponse(None)
-                response.deserialize(input_archive, tag)
-                self.results.append((response.path))
+                create_response = CreateResponse(None)
+                create_response.deserialize(input_archive, tag)
+                self.results.append((create_response.path))
             elif header.type == DeleteRequest.type:
                 self.results.append(())
             elif header.type == SetDataRequest.type:
-                response = SetDataResponse(None)
-                response.deserialize(input_archive, tag)
-                self.results.append((response.stat))
+                set_data_response = SetDataResponse(None)
+                set_data_response.deserialize(input_archive, tag)
+                self.results.append((set_data_response.stat))
             elif header.type == CheckVersionRequest.type:
                 self.results.append(())
             elif header.type == -1:
-                response = ErrorResponse(None)
-                response.deserialize(input_archive, tag)
-                self.results.append((EXCEPTIONS[response.err]()))
+                error_response = ErrorResponse(None)
+                error_response.deserialize(input_archive, tag)
+                self.results.append((EXCEPTIONS[error_response.err]()))
 
             header.deserialize(input_archive, tag)
 

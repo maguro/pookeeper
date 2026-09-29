@@ -118,6 +118,10 @@ class ReaderThread(threading.Thread):
                         watcher_event.deserialize(input_archive, "event")
 
                         path = watcher_event.path
+                        if path is None:
+                            LOGGER.warning("Received watcher event without a path %r", watcher_event)
+                            continue
+
                         watchers = set()
                         with self.client._state_lock:
                             if watcher_event.event_type == WatcherEventType.CREATED_EVENT:
@@ -326,7 +330,7 @@ class WriterThread(threading.Thread):
             )
 
         soc.connect((host, port))
-        soc.setblocking(0)
+        soc.setblocking(False)
 
         LOGGER.debug("Connected")
 
@@ -375,7 +379,7 @@ class WriterThread(threading.Thread):
                 self.client.session.last_zxid = zxid
 
 
-def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Optional[int] = None) -> int:
+def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Optional[int] = None) -> Optional[int]:
     oa = OutputArchive()
     if xid:
         oa.write_int(xid, "xid")

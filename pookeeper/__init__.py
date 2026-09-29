@@ -19,7 +19,7 @@ import logging
 from collections import defaultdict
 from enum import IntEnum
 from posixpath import split
-from typing import NewType
+from typing import Callable, Optional
 
 from pookeeper.packets.data import Id
 from pookeeper.packets.data.ACL import ACL
@@ -32,7 +32,7 @@ LOGGER = logging.getLogger(__name__)
 def allocate(
         hosts,
         session_id=None,
-        session_passwd: bytearray = None,
+        session_passwd: Optional[bytearray] = None,
         session_timeout=30.0,
         auth_data=None,
         read_only=False,
@@ -100,7 +100,7 @@ def allocate(
 def allocate_34(
         hosts,
         session_id=None,
-        session_passwd: bytearray = None,
+        session_passwd: Optional[bytearray] = None,
         session_timeout=30.0,
         auth_data=None,
         read_only=False,
@@ -186,7 +186,7 @@ def allocate_34(
 def allocate_33(
         hosts,
         session_id=None,
-        session_passwd: bytearray = None,
+        session_passwd: Optional[bytearray] = None,
         session_timeout=30.0,
         auth_data=None,
         watcher=None,
@@ -337,8 +337,7 @@ class Watcher:
         pass
 
 
-Key = NewType("Key", str)
-WatchersDict = defaultdict[Key, set[Watcher]]
+WatchersDict = defaultdict[str, set[Watcher]]
 
 
 class State:
@@ -402,6 +401,10 @@ CREATE_CODES = {}
 
 
 class CreateCode:
+    flags: int
+    ephemeral: bool
+    sequential: bool
+
     def __repr__(self):
         return "%s()" % self.__class__.__name__
 
@@ -487,7 +490,7 @@ def _invalid_error_code():
     raise RuntimeError("Invalid error code")
 
 
-EXCEPTIONS = defaultdict(_invalid_error_code)
+EXCEPTIONS: defaultdict[int, Callable[..., Exception]] = defaultdict(_invalid_error_code)
 
 
 def _zookeeper_exception(code):

@@ -16,7 +16,7 @@
 """
 
 import random
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 class RandomHostIterator:
@@ -45,7 +45,7 @@ class RandomHostIterator:
         return "RandomHostIterator(%r)" % self.hosts
 
 
-def collect_hosts(hosts) -> (RandomHostIterator, str):
+def collect_hosts(hosts) -> Tuple[RandomHostIterator, Optional[str]]:
     """Collect a set of hosts and an optional chroot from a string."""
     host_ports, chroot = hosts.partition("/")[::2]
     chroot = "/" + chroot if chroot else None
