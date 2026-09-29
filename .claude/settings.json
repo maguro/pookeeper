@@ -1,0 +1,17 @@
+{
+  "model": "sonnet",
+  "outputStyle": "terse-eng",
+  "effortLevel": "medium",
+  "tui": "fullscreen",
+  "skipWorkflowUsageWarning": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "autoMode": {
+    "environment": [],
+    "allow": ["$defaults"]
+  }
+}
