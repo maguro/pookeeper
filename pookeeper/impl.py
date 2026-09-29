@@ -171,7 +171,7 @@ class ReaderThread(threading.Thread):
                             if header.zxid and header.zxid > 0:
                                 self.client.session.last_zxid = header.zxid
                             if header.xid != xid:
-                                raise RuntimeError("xids do not match, expected %r received %r", xid, header.xid)
+                                raise RuntimeError("xids do not match, expected %r received %r" % (xid, header.xid))
 
                             callback_exception = None
                             if header.err:
@@ -401,7 +401,7 @@ def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Opt
         header = ReplyHeader(None, None, None)
         header.deserialize(ia, "header")
         if header.xid != xid:
-            raise RuntimeError("xids do not match, expected %r received %r", xid, header.xid)
+            raise RuntimeError("xids do not match, expected %r received %r" % (xid, header.xid))
         if header.zxid > 0:
             zxid = header.zxid
         if header.err:
