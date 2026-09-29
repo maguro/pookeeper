@@ -1,19 +1,19 @@
-""" Pookeeper testing harnesses
- Copyright 2012 the original author or authors
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-"""
+"""Pookeeper testing harnesses"""
 
 import atexit
 import datetime
@@ -131,8 +131,8 @@ class PookeeperTestCase(unittest.TestCase, PookeeperTestHarness):
 class DebugFormatter(logging.Formatter):
     converter = datetime.datetime.fromtimestamp
 
-    def __init__(self, format, datefmt):
-        logging.Formatter.__init__(self, format, datefmt)
+    def __init__(self, fmt, datefmt):
+        logging.Formatter.__init__(self, fmt, datefmt)
 
     def formatTime(self, record, datefmt=None):
         ct = self.converter(record.created)
@@ -140,14 +140,14 @@ class DebugFormatter(logging.Formatter):
             s = ct.strftime(datefmt)
         else:
             t = ct.strftime("%I:%M:%S.%f")
-            s = "%s.%03d" % (t, record.msecs)
+            s = f"{t}.{int(record.msecs):03d}"
         return s
 
 
 def add_handler(
     name,
     log_level=logging.NOTSET,
-    format="%(asctime)s %(name)-12s[%(threadName)s]: %(levelname)-8s %(message)s",
+    fmt="%(asctime)s %(name)-12s[%(threadName)s]: %(levelname)-8s %(message)s",
     datefmt="%I:%M:%S.%f",
 ):
     logger = logging.getLogger(name)
@@ -157,6 +157,6 @@ def add_handler(
 
     console = logging.StreamHandler()
     console.setLevel(log_level)
-    console.setFormatter(DebugFormatter(format, datefmt))
+    console.setFormatter(DebugFormatter(fmt, datefmt))
 
     logger.addHandler(console)

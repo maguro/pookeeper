@@ -1,35 +1,32 @@
-"""
- Copyright 2012 the original author or authors
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-"""
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import logging
 import socket
 import threading
 from collections import defaultdict
 from queue import Queue
-from typing import List, Optional, Tuple
 
 from pookeeper import (
     AUTH_FAILED,
-    AuthFailedError,
     CLOSED,
     CONNECTED,
     CONNECTED_RO,
     CONNECTING,
     CONNECTION_DROPPED_FOR_TEST,
+    AuthFailedError,
     ConnectionLoss,
     CreateCode,
     InvalidACLError,
@@ -76,18 +73,21 @@ _ID_LOCK = threading.RLock()
 
 
 def log_wrapper():
-    """A class method decorator that renames the current thread to identify the current pookeeper client"""
+    """A class method decorator that renames the current thread.
+
+    The new name identifies the current pookeeper client.
+    """
 
     def wrapper(method):
         def new(self, *args, **kws):
             global _ID
             try:
-                name = "pookeeper-%s" % self.id
+                name = f"pookeeper-{self.id}"
             except AttributeError:
                 with _ID_LOCK:
                     self.id = _ID
                     _ID += 1
-                name = "pookeeper-%s" % self.id
+                name = f"pookeeper-{self.id}"
             current_thread = threading.current_thread()
             current_name = current_thread.name
             current_thread.name = name if current_name == "MainThread" else current_name
@@ -106,14 +106,14 @@ class Client33:
 
     @log_wrapper()
     def __init__(
-            self,
-            hosts,
-            session_id=None,
-            session_passwd: Optional[bytearray] = None,
-            session_timeout=30.0,
-            auth_data=None,
-            watcher: Optional[Watcher] = None,
-            allow_reconnect=True,
+        self,
+        hosts,
+        session_id=None,
+        session_passwd: bytearray | None = None,
+        session_timeout=30.0,
+        auth_data=None,
+        watcher: Watcher | None = None,
+        allow_reconnect=True,
     ):
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
@@ -127,11 +127,15 @@ class Client33:
         self.session_timeout = session_timeout
         self.connect_timeout = session_timeout / len(self.hosts)
         self.read_timeout = session_timeout * 2.0 / 3.0
-        self.auth_data = auth_data if auth_data else set([])
+        self.auth_data = auth_data if auth_data else set()
         self.read_only = False
 
         if LOGGER.isEnabledFor(logging.DEBUG):
-            encoded_session_password = ''.join('{:02x}'.format(x) for x in session_passwd) if session_passwd else "None"
+            encoded_session_password = (
+                "".join(f"{x:02x}" for x in session_passwd)
+                if session_passwd
+                else "None"
+            )
 
             LOGGER.debug("session_id: %s", self.session.id)
             LOGGER.debug("session_passwd: 0x%s", encoded_session_password)
@@ -182,7 +186,7 @@ class Client33:
 
         LOGGER.debug("close()")
 
-        call_exception: Optional[BaseException] = None
+        call_exception: BaseException | None = None
 
         with self._state_lock:
             if self.state == AUTH_FAILED:
@@ -206,7 +210,13 @@ class Client33:
             raise call_exception
 
     @log_wrapper()
-    def create(self, path: str, acls: List[ACL], code: CreateCode, data: Optional[bytearray] = None) -> str:
+    def create(
+        self,
+        path: str,
+        acls: list[ACL],
+        code: CreateCode,
+        data: bytearray | None = None,
+    ) -> str:
         """Create a node with the given path
 
         The node data will be the given data, and node acl will be the given
@@ -275,7 +285,7 @@ class Client33:
 
         self._call(request, response)
 
-        return response.path[len(self.chroot):]
+        return response.path[len(self.chroot) :]
 
     @log_wrapper()
     def delete(self, path: str, version: int = -1) -> None:
@@ -312,7 +322,7 @@ class Client33:
         self._call(request, None)
 
     @log_wrapper()
-    def exists(self, path: str, watch: bool = False, watcher=None) -> Optional[Stat]:
+    def exists(self, path: str, watch: bool = False, watcher=None) -> Stat | None:
         """Return the stat of the node of the given path
 
         Return null if no such a node exists.
@@ -342,27 +352,39 @@ class Client33:
         if watch and watcher:
             LOGGER.warning("Both watch and watcher were specified, registering watcher")
 
-        request = ExistsRequest(_prefix_root(self.chroot, path), watch or watcher is not None)
+        request = ExistsRequest(
+            _prefix_root(self.chroot, path), watch or watcher is not None
+        )
         response = ExistsResponse(None)
 
         def register_watcher(exception):
             if not exception:
                 with self._state_lock:
-                    self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
+                    self._data_watchers[_prefix_root(self.chroot, path)].add(
+                        watcher or self._default_watcher
+                    )
             elif exception == NoNodeError:
                 with self._state_lock:
-                    self._exists_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
+                    self._exists_watchers[_prefix_root(self.chroot, path)].add(
+                        watcher or self._default_watcher
+                    )
 
         try:
-            self._call(request, response, register_watcher if (watch or watcher) else lambda e: True)
-
-            return response.stat if response.stat.czxid != -1 else None
+            self._call(
+                request,
+                response,
+                register_watcher if (watch or watcher) else lambda e: True,
+            )
         except NoNodeError:
             register_watcher(NoNodeError)
             return None
+        else:
+            return response.stat if response.stat.czxid != -1 else None
 
     @log_wrapper()
-    def get_data(self, path: str, watch: bool = False, watcher=None) -> Tuple[bytearray, Stat]:
+    def get_data(
+        self, path: str, watch: bool = False, watcher=None
+    ) -> tuple[bytearray, Stat]:
         """Return the data and the stat of the node of the given path
 
         If the watch is non-null and the call is successful (no error is
@@ -392,15 +414,23 @@ class Client33:
         if watch and watcher:
             LOGGER.warning("Both watch and watcher were specified, registering watcher")
 
-        request = GetDataRequest(_prefix_root(self.chroot, path), watch or watcher is not None)
+        request = GetDataRequest(
+            _prefix_root(self.chroot, path), watch or watcher is not None
+        )
         response = GetDataResponse(None, None)
 
         def register_watcher(exception):
             if not exception:
                 with self._state_lock:
-                    self._data_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
+                    self._data_watchers[_prefix_root(self.chroot, path)].add(
+                        watcher or self._default_watcher
+                    )
 
-        self._call(request, response, register_watcher if (watch or watcher) else lambda e: True)
+        self._call(
+            request,
+            response,
+            register_watcher if (watch or watcher) else lambda e: True,
+        )
 
         return response.data, response.stat
 
@@ -417,7 +447,8 @@ class Client33:
 
         NoNodeError will be raised if no node with the given path exists.
 
-        BadVersionError will be raised if the given version does not match the node's version.
+        BadVersionError will be raised if the given version does not match the
+        node's version.
 
         The maximum allowable size of the data array is 1 MB (1,048,576 bytes).
         Arrays larger than this will cause a ZookeeperError to be thrown.
@@ -445,7 +476,7 @@ class Client33:
         return response.stat
 
     @log_wrapper()
-    def get_acls(self, path: str) -> Tuple[List[ACL], Stat]:
+    def get_acls(self, path: str) -> tuple[list[ACL], Stat]:
         """Return the ACL and stat of the node of the given path
 
         NoNodeError will be raised if no node with the given path exists.
@@ -471,7 +502,7 @@ class Client33:
         return response.acl, response.stat
 
     @log_wrapper()
-    def set_acls(self, path: str, acls: List[ACL], version: int = -1) -> Stat:
+    def set_acls(self, path: str, acls: list[ACL], version: int = -1) -> Stat:
         """Set the ACL for the node of the given path
 
         Set the ACL for the node of the given path if such a node exists and the
@@ -480,7 +511,8 @@ class Client33:
 
         NoNodeError will be raised if no node with the given path exists.
 
-        BadVersionError will be raised if the given version does not match the node's version.
+        BadVersionError will be raised if the given version does not match the
+        node's version.
 
         Args:
             path: the given path for the node
@@ -527,7 +559,9 @@ class Client33:
         self._call(request, response)
 
     @log_wrapper()
-    def get_children(self, path: str, watch: bool = False, watcher=None) -> Tuple[List[str], Stat]:
+    def get_children(
+        self, path: str, watch: bool = False, watcher=None
+    ) -> tuple[list[str], Stat]:
         """Return the list of the children of the node of the given path
 
         If the watch is non-null and the call is successful (no error is raised),
@@ -559,20 +593,28 @@ class Client33:
         if watch and watcher:
             LOGGER.warning("Both watch and watcher were specified, registering watcher")
 
-        request = GetChildren2Request(_prefix_root(self.chroot, path), watch or watcher is not None)
+        request = GetChildren2Request(
+            _prefix_root(self.chroot, path), watch or watcher is not None
+        )
         response = GetChildren2Response(None, None)
 
         def register_watcher(exception):
             if not exception:
                 with self._state_lock:
-                    self._child_watchers[_prefix_root(self.chroot, path)].add(watcher or self._default_watcher)
+                    self._child_watchers[_prefix_root(self.chroot, path)].add(
+                        watcher or self._default_watcher
+                    )
 
-        self._call(request, response, register_watcher if (watch or watcher) else lambda e: True)
+        self._call(
+            request,
+            response,
+            register_watcher if (watch or watcher) else lambda e: True,
+        )
 
         return response.children, response.stat
 
     def _call(self, request, response, register_watcher=None):
-        call_exception: Optional[BaseException] = None
+        call_exception: BaseException | None = None
         event = threading.Event()
 
         with self._state_lock:
@@ -611,16 +653,31 @@ class Client33:
             LOGGER.debug("Connected %s", "read-only mode" if read_only else "")
 
             self.state = CONNECTED_RO if read_only else CONNECTED
-            self._events.put(lambda: self._default_watcher.session_connected(session_id, session_passwd, read_only))
+            self._events.put(
+                lambda: self._default_watcher.session_connected(
+                    session_id, session_passwd, read_only
+                )
+            )
 
     def _disconnected(self):
-        assert self.state in {CONNECTING, CONNECTED, CONNECTED_RO, CONNECTION_DROPPED_FOR_TEST}
+        assert self.state in {  # noqa: S101
+            CONNECTING,
+            CONNECTED,
+            CONNECTED_RO,
+            CONNECTION_DROPPED_FOR_TEST,
+        }
         with self._state_lock:
             if self.state in {CONNECTING, CONNECTION_DROPPED_FOR_TEST}:
                 return
 
-            LOGGER.debug("Disconnected %s %s pending calls", self.state, self._pending.qsize())
-            LOGGER.debug("        %s %s queued calls", " " * len(str(self.state)), self._queue.qsize())
+            LOGGER.debug(
+                "Disconnected %s %s pending calls", self.state, self._pending.qsize()
+            )
+            LOGGER.debug(
+                "        %s %s queued calls",
+                " " * len(str(self.state)),
+                self._queue.qsize(),
+            )
 
             self.state = CONNECTING
 
@@ -631,12 +688,14 @@ class Client33:
 
     def _closed(self, state, session_expired=False):
         """The party is over.  Time to clean up"""
-        assert state in set([CLOSED, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST])
+        assert state in {CLOSED, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST}  # noqa: S101
         with self._state_lock:
             self.state = state
 
             LOGGER.debug("CLOSING %s %s pending calls", state, self._pending.qsize())
-            LOGGER.debug("        %s %s queued calls", " " * len(str(state)), self._queue.qsize())
+            LOGGER.debug(
+                "        %s %s queued calls", " " * len(str(state)), self._queue.qsize()
+            )
             if session_expired:
                 LOGGER.debug("        session expired")
 
@@ -644,13 +703,17 @@ class Client33:
             if state == AUTH_FAILED:
                 self._events.put(lambda: self._default_watcher.auth_failed())
             elif session_expired:
-                self._events.put(lambda: self._default_watcher.session_expired(self.session.id))
+                self._events.put(
+                    lambda: self._default_watcher.session_expired(self.session.id)
+                )
             else:
                 self._events.put(lambda: self._default_watcher.connection_closed())
 
             # drain queues
             if state == CLOSED:
-                self._drain(SessionExpiredError() if session_expired else ConnectionLoss())
+                self._drain(
+                    SessionExpiredError() if session_expired else ConnectionLoss()
+                )
             elif state == AUTH_FAILED:
                 self._drain(AuthFailedError())
 
@@ -659,7 +722,7 @@ class Client33:
             self._events.stop()
 
     def _drain(self, error):
-        assert self._state_lock._is_owned()  # type: ignore[attr-defined]
+        assert self._state_lock._is_owned()  # type: ignore[attr-defined]  # noqa: S101
 
         while not self._pending.empty():
             _, _, callback, _ = self._pending.get()
@@ -679,17 +742,26 @@ class Client33:
 class Client34(Client33):
     @log_wrapper()
     def __init__(
+        self,
+        hosts,
+        session_id=None,
+        session_passwd: bytearray | None = None,
+        session_timeout=30.0,
+        auth_data=None,
+        read_only=False,
+        watcher=None,
+        allow_reconnect=True,
+    ):
+        Client33.__init__(
             self,
             hosts,
-            session_id=None,
-            session_passwd: Optional[bytearray] = None,
-            session_timeout=30.0,
-            auth_data=None,
-            read_only=False,
-            watcher=None,
-            allow_reconnect=True,
-    ):
-        Client33.__init__(self, hosts, session_id, session_passwd, session_timeout, auth_data, watcher, allow_reconnect)
+            session_id,
+            session_passwd,
+            session_timeout,
+            auth_data,
+            watcher,
+            allow_reconnect,
+        )
         self.read_only = read_only
 
     @log_wrapper()
@@ -725,8 +797,10 @@ class _Transaction:
     @log_wrapper()
     def create(self, path, acls, code, data=None):
         self._add(
-            CreateRequest(_prefix_root(self.client.chroot, path), data, acls, code.flags),
-            lambda x: x[len(self.client.chroot):],
+            CreateRequest(
+                _prefix_root(self.client.chroot, path), data, acls, code.flags
+            ),
+            lambda x: x[len(self.client.chroot) :],
         )
 
     @log_wrapper()
@@ -749,8 +823,10 @@ class _Transaction:
             LOGGER.debug("Committing on %r", self)
 
             results = []
-            for e, p in zip(self.client._multi(self.operations), self.post_processors):
-                if isinstance(e, str) or isinstance(e, str):
+            for e, p in zip(
+                self.client._multi(self.operations), self.post_processors, strict=False
+            ):
+                if isinstance(e, str):
                     e = p(e)
                 results.append(e)
 
@@ -759,9 +835,9 @@ class _Transaction:
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         """commit and cleanup accumulated transaction data structures"""
-        if not type:
+        if not exc_type:
             self.commit()
 
     def _check_tx_state(self):
@@ -773,7 +849,9 @@ class _Transaction:
             self._check_tx_state()
             LOGGER.debug("Added %r to %r", request, self)
             self.operations.append(request)
-            self.post_processors.append(post_processor if post_processor else lambda x: x)
+            self.post_processors.append(
+                post_processor if post_processor else lambda x: x
+            )
 
 
 def _prefix_root(root: str, path: str) -> str:

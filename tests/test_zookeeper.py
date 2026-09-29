@@ -1,19 +1,18 @@
-"""
-Copyright 2012 the original author or authors
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
-"""
 import struct
 import threading
 from queue import Queue
@@ -21,20 +20,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from pookeeper import impl
-from pookeeper.archive import OutputArchive
-from pookeeper.packets.proto.ReplyHeader import ReplyHeader
 from pookeeper import (
+    CREATE_CODES,
+    EXCEPTIONS,
     APIError,
     AuthFailed,
     AuthFailedError,
     BadArgumentsError,
     BadVersionError,
-    CREATE_CODES,
     Connecting,
     ConnectionLoss,
     DataInconsistency,
-    EXCEPTIONS,
     Ephemeral,
     EphemeralSequential,
     InvalidACLError,
@@ -42,8 +38,8 @@ from pookeeper import (
     MarshallingError,
     NoAuthError,
     NoChildrenForEphemeralsError,
-    NoNodeError,
     NodeExistsError,
+    NoNodeError,
     NotEmptyError,
     OperationTimeoutError,
     Persistent,
@@ -52,8 +48,11 @@ from pookeeper import (
     SessionExpiredError,
     SystemZookeeperError,
     UnimplementedError,
+    impl,
 )
+from pookeeper.archive import OutputArchive
 from pookeeper.hosts import collect_hosts
+from pookeeper.packets.proto.ReplyHeader import ReplyHeader
 from pookeeper.zookeeper import _prefix_root
 from tests import container
 
@@ -74,26 +73,26 @@ def test_state():
 def test_create_codes():
     assert isinstance(CREATE_CODES[0], Persistent)
     assert CREATE_CODES[0].flags == 0
-    assert CREATE_CODES[0].ephemeral == False
-    assert CREATE_CODES[0].sequential == False
+    assert not CREATE_CODES[0].ephemeral
+    assert not CREATE_CODES[0].sequential
     assert str(CREATE_CODES[0]) == "PERSISTENT"
 
     assert isinstance(CREATE_CODES[1], Ephemeral)
     assert CREATE_CODES[1].flags == 1
-    assert CREATE_CODES[1].ephemeral == True
-    assert CREATE_CODES[1].sequential == False
+    assert CREATE_CODES[1].ephemeral
+    assert not CREATE_CODES[1].sequential
     assert str(CREATE_CODES[1]) == "EPHEMERAL"
 
     assert isinstance(CREATE_CODES[2], PersistentSequential)
     assert CREATE_CODES[2].flags == 2
-    assert CREATE_CODES[2].ephemeral == False
-    assert CREATE_CODES[2].sequential == True
+    assert not CREATE_CODES[2].ephemeral
+    assert CREATE_CODES[2].sequential
     assert str(CREATE_CODES[2]) == "PERSISTENT_SEQUENTIAL"
 
     assert isinstance(CREATE_CODES[3], EphemeralSequential)
     assert CREATE_CODES[3].flags == 3
-    assert CREATE_CODES[3].ephemeral == True
-    assert CREATE_CODES[3].sequential == True
+    assert CREATE_CODES[3].ephemeral
+    assert CREATE_CODES[3].sequential
     assert str(CREATE_CODES[3]) == "EPHEMERAL_SEQUENTIAL"
 
 
@@ -118,11 +117,8 @@ def test_EXCEPTIONS():
     assert isinstance(EXCEPTIONS[-114](), InvalidACLError)
     assert isinstance(EXCEPTIONS[-115](), AuthFailedError)
 
-    try:
+    with pytest.raises(RuntimeError, match="Invalid error code"):
         EXCEPTIONS[666]()
-        assert False, "Non existent error code should have thrown an exception"
-    except Exception:
-        pass
 
 
 def test_hosts():
@@ -168,14 +164,16 @@ def test_hosts():
     assert count == 17
 
 
-@pytest.mark.parametrize("root, path, full_path",
-                         [
-                             ("", "foo", "/foo"),
-                             ("", "/foo", "/foo"),
-                             ("/", "foo", "/foo"),
-                             ("/moo/", "/foo/", "/moo/foo"),
-                             ("/moo", "foo/", "/moo/foo"),
-                         ])
+@pytest.mark.parametrize(
+    "root, path, full_path",
+    [
+        ("", "foo", "/foo"),
+        ("", "/foo", "/foo"),
+        ("/", "foo", "/foo"),
+        ("/moo/", "/foo/", "/moo/foo"),
+        ("/moo", "foo/", "/moo/foo"),
+    ],
+)
 def test_prefix_root(root, path, full_path):
     prefixed_root = _prefix_root(root, path)
     assert prefixed_root == full_path, f"{prefixed_root} != {full_path}"

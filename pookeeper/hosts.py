@@ -1,22 +1,19 @@
-"""
- Copyright 2012 the original author or authors
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-"""
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import random
-from typing import List, Optional, Tuple
 
 
 class RandomHostIterator:
@@ -25,9 +22,9 @@ class RandomHostIterator:
     host in the collection.
     """
 
-    def __init__(self, hosts: List[Tuple[str, int]]):
+    def __init__(self, hosts: list[tuple[str, int]]):
         self.index = -1
-        self.hosts = [host for host in hosts]
+        self.hosts = list(hosts)
         random.shuffle(self.hosts)
         self._len = len(self.hosts)
 
@@ -42,10 +39,10 @@ class RandomHostIterator:
         return self.hosts[self.index % self._len]
 
     def __repr__(self):
-        return "RandomHostIterator(%r)" % self.hosts
+        return f"RandomHostIterator({self.hosts!r})"
 
 
-def collect_hosts(hosts) -> Tuple[RandomHostIterator, Optional[str]]:
+def collect_hosts(hosts) -> tuple[RandomHostIterator, str | None]:
     """Collect a set of hosts and an optional chroot from a string."""
     host_ports, chroot = hosts.partition("/")[::2]
     chroot = "/" + chroot if chroot else None

@@ -1,31 +1,31 @@
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# The license above refers to changes to the original code.
+#
+# posixpath is part of the Python standard library, and is licensed under
+# the Python Software Foundation License <http://docs.python.org/license.html>,
+# which can be linked with libraries of other licenses and allows changes to be
+# released under different licenses. See LICENSE.txt for a copy of the PSFL.
+#
+# The original code can be found at
+# <http://hg.python.org/releasing/2.7.3/file/7bb96963d067/Lib/posixpath.py>.
+
 """Path utilities based on :mod:`posixpath`.
 
 :func:`normpath` has been modified not to allow relative paths.
-
-:mod:`posixpath` is part of the Python standard library, and is licensed under
-the `Python Software Foundation License <http://docs.python.org/license.html>`_,
-which can be linked with libraries of other licenses and allows changes to be
-released under different licenses. See LICENSE.txt for a copy of the PSFL.
-
-The original code can be found `here
-<http://hg.python.org/releasing/2.7.3/file/7bb96963d067/Lib/posixpath.py>`_.
-
-The following license text refers to changes to the original code:
-
- Copyright 2012 the original author or authors
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
 """
 
 
@@ -39,7 +39,7 @@ def normpath(path: str) -> str:
         if comp in (".", ".."):
             raise ValueError("relative paths not allowed")
         new_comps.append(comp)
-    slash = "/" if isinstance(path, str) else "/"
+    slash = "/"
     new_path = slash.join(new_comps)
     if path.startswith("/"):
         return slash + new_path

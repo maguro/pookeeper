@@ -74,29 +74,29 @@ class ManagedZooKeeper:
 
         with open(config_path, "w") as config:
             config.write(
-                """
+                f"""
 tickTime=2000
-dataDir=%s
-clientPort=%s
+dataDir={data_path}
+clientPort={self.server_info.client_port}
 maxClientCnxns=0
 """
-                % (data_path, self.server_info.client_port)
             )
 
         # setup a replicated setup if peers are specified
         if self.peers:
             servers_cfg = []
             for p in chain((self.server_info,), self.peers):
-                servers_cfg.append("server.%s=localhost:%s:%s" % (p.server_id, p.leader_port, p.election_port))
+                servers_cfg.append(
+                    f"server.{p.server_id}=localhost:{p.leader_port}:{p.election_port}"
+                )
 
             with open(config_path, "a") as config:
                 config.write(
                     """
 initLimit=4
 syncLimit=2
-%s
-"""
-                    % ("\n".join(servers_cfg))
+{}
+""".format("\n".join(servers_cfg))
                 )
 
         # Write server ids into datadir
@@ -122,9 +122,9 @@ log4j.appender.ROLLINGFILE.File="""
                 "-cp",
                 self.classpath,
                 "-Dreadonlymode.enabled=true",
-                "-Dzookeeper.log.dir=%s" % log_path,
+                f"-Dzookeeper.log.dir={log_path}",
                 "-Dzookeeper.root.logger=INFO,CONSOLE",
-                "-Dlog4j.configuration=file:%s" % log4j_path,
+                f"-Dlog4j.configuration=file:{log4j_path}",
                 # "-Dlog4j.debug",
                 "org.apache.zookeeper.server.quorum.QuorumPeerMain",
                 config_path,
@@ -151,7 +151,7 @@ log4j.appender.ROLLINGFILE.File="""
     @property
     def address(self):
         """Get the address of the ZooKeeper instance."""
-        return "%s:%s" % (self.host, self.client_port)
+        return f"{self.host}:{self.client_port}"
 
     @property
     def running(self):
@@ -187,7 +187,12 @@ log4j.appender.ROLLINGFILE.File="""
         shutil.rmtree(self.working_path)
 
     def __repr__(self):
-        return "ManagedZooKeeper(%r, %r, %r)" % (self.install_path, self.server_info, self.peers)
+        return (
+            "ManagedZooKeeper("
+            f"{self.install_path!r}, "
+            f"{self.server_info!r}, "
+            f"{self.peers!r})"
+        )
 
 
 PORT_INCREMENT = 10
@@ -211,7 +216,9 @@ class ZookeeperCluster:
         for i in range(size):
             server_peers = list(peers)
             server_info = server_peers.pop(i)
-            self._servers.append(ManagedZooKeeper(self._install_path, server_info, server_peers))
+            self._servers.append(
+                ManagedZooKeeper(self._install_path, server_info, server_peers)
+            )
 
     def __getitem__(self, k):
         if not self._servers:

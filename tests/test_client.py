@@ -1,19 +1,17 @@
-"""
-Copyright 2012 the original author or authors
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
-"""
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import logging
 import random
@@ -29,7 +27,8 @@ from pookeeper import (
 from pookeeper.impl import ConnectionDroppedForTest
 from pookeeper.packets.data.Stat import Stat
 from tests import (
-    DropableClient34, container,
+    DropableClient34,
+    container,
 )
 
 LOGGER = logging.getLogger("tests")
@@ -50,7 +49,9 @@ def test_close():
     with container.Zookeeper() as zk:
         connection_string = zk.get_connection_string()
         watcher = WatcherCounter()
-        client = pookeeper.allocate(connection_string, session_timeout=3.0, watcher=watcher)
+        client = pookeeper.allocate(
+            connection_string, session_timeout=3.0, watcher=watcher
+        )
         client.sync("/")
         client.close()
 
@@ -67,7 +68,12 @@ def test_exists_default_watcher():
         watcher = mock()
         with pookeeper.allocate(connection_string, watcher=watcher) as client:
             assert not client.exists("/pookie", watch=True)
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Ephemeral(),
+                data=_random_data(),
+            )
 
             stat = client.exists("/pookie", watch=True)
             stat = client.set_data("/pookie", _random_data(), stat.version)
@@ -76,7 +82,9 @@ def test_exists_default_watcher():
             stat = client.exists("/pookie", watch=True)
             client.delete("/pookie", stat.version)
 
-        inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+        inorder.verify(watcher).session_connected(
+            matchers.any(int), matchers.any(bytearray), False
+        )
         inorder.verify(watcher).node_created("/pookie")
         inorder.verify(watcher).data_changed("/pookie")
         inorder.verify(watcher).node_deleted("/pookie")
@@ -89,7 +97,12 @@ def test_set_data_default_watcher():
         connection_string = zk.get_connection_string()
         watcher = mock()
         with pookeeper.allocate(connection_string, watcher=watcher) as client:
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Ephemeral(),
+                data=_random_data(),
+            )
 
             stat = client.exists("/pookie")
             stat = client.set_data("/pookie", _random_data(), stat.version)
@@ -98,7 +111,9 @@ def test_set_data_default_watcher():
             client.get_data("/pookie", watch=True)
             client.delete("/pookie", stat.version)
 
-    inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    inorder.verify(watcher).session_connected(
+        matchers.any(int), matchers.any(bytearray), False
+    )
     inorder.verify(watcher).data_changed("/pookie")
     inorder.verify(watcher).node_deleted("/pookie")
     inorder.verify(watcher).connection_closed()
@@ -110,10 +125,20 @@ def test_get_children_default_watcher():
         connection_string = zk.get_connection_string()
         watcher = mock()
         with pookeeper.allocate(connection_string, watcher=watcher) as client:
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Persistent(),
+                data=_random_data(),
+            )
             client.get_children("/pookie", watch=True)
 
-            client.create("/pookie/bear", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.create(
+                "/pookie/bear",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Persistent(),
+                data=_random_data(),
+            )
             client.get_children("/pookie", watch=True)
 
             client.set_data("/pookie", _random_data())
@@ -126,7 +151,9 @@ def test_get_children_default_watcher():
             client.delete("/pookie/bear")
             client.delete("/pookie")
 
-    mockito.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    mockito.verify(watcher).session_connected(
+        matchers.any(int), matchers.any(bytearray), False
+    )
     mockito.verify(watcher, times=2).children_changed("/pookie")
     mockito.verify(watcher).node_deleted("/pookie/bear")
     mockito.verify(watcher).connection_closed()
@@ -139,7 +166,12 @@ def test_exists_watcher():
         watcher = mock()
         with pookeeper.allocate(connection_string, watcher=watcher) as client:
             assert not client.exists("/pookie", watcher=watcher)
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Ephemeral(),
+                data=_random_data(),
+            )
 
             stat = client.exists("/pookie", watcher=watcher)
             stat = client.set_data("/pookie", _random_data(), stat.version)
@@ -148,7 +180,9 @@ def test_exists_watcher():
             stat = client.exists("/pookie", watcher=watcher)
             client.delete("/pookie", stat.version)
 
-    inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    inorder.verify(watcher).session_connected(
+        matchers.any(int), matchers.any(bytearray), False
+    )
     inorder.verify(watcher).node_created("/pookie")
     inorder.verify(watcher).data_changed("/pookie")
     inorder.verify(watcher).node_deleted("/pookie")
@@ -161,7 +195,12 @@ def test_set_data_watcher():
         connection_string = zk.get_connection_string()
         watcher = mock()
         with pookeeper.allocate(connection_string, watcher=watcher) as client:
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=_random_data())
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Ephemeral(),
+                data=_random_data(),
+            )
 
             stat = client.exists("/pookie")
             stat = client.set_data("/pookie", _random_data(), stat.version)
@@ -170,7 +209,9 @@ def test_set_data_watcher():
             client.get_data("/pookie", watcher=watcher)
             client.delete("/pookie", stat.version)
 
-    inorder.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    inorder.verify(watcher).session_connected(
+        matchers.any(int), matchers.any(bytearray), False
+    )
     inorder.verify(watcher).data_changed("/pookie")
     inorder.verify(watcher).node_deleted("/pookie")
     inorder.verify(watcher).connection_closed()
@@ -182,10 +223,20 @@ def test_get_children_watcher():
         connection_string = zk.get_connection_string()
         watcher = mock()
         with pookeeper.allocate(connection_string, watcher=watcher) as client:
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Persistent(),
+                data=_random_data(),
+            )
             client.get_children("/pookie", watcher=watcher)
 
-            client.create("/pookie/bear", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=_random_data())
+            client.create(
+                "/pookie/bear",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Persistent(),
+                data=_random_data(),
+            )
             client.get_children("/pookie", watcher=watcher)
 
             client.set_data("/pookie", _random_data())
@@ -198,7 +249,9 @@ def test_get_children_watcher():
             client.delete("/pookie/bear")
             client.delete("/pookie")
 
-    mockito.verify(watcher).session_connected(matchers.any(int), matchers.any(bytearray), False)
+    mockito.verify(watcher).session_connected(
+        matchers.any(int), matchers.any(bytearray), False
+    )
     mockito.verify(watcher, times=2).children_changed("/pookie")
     mockito.verify(watcher).node_deleted("/pookie/bear")
     mockito.verify(watcher).connection_closed()
@@ -233,7 +286,7 @@ def test_session_resumption():
 
         try:
             client.exists("/e")
-            assert False, "Connection dropped for test"
+            raise AssertionError("Connection dropped for test")
         except ConnectionDroppedForTest:
             pass
 
@@ -250,15 +303,15 @@ def test_session_resumption():
 
         try:
             resumed_client.exists("/e")
-            assert False, "Should have raised SessionExpiredError"
+            raise AssertionError("Should have raised SessionExpiredError")
         except pookeeper.SessionExpiredError:
             pass
 
         with DropableClient34(
-                connection_string,
-                session_timeout=resumed_client.session_timeout,
-                session_id=resumed_client.session.id,
-                session_passwd=resumed_client.session.passwd,
+            connection_string,
+            session_timeout=resumed_client.session_timeout,
+            session_id=resumed_client.session.id,
+            session_passwd=resumed_client.session.passwd,
         ) as new_client:
             stat = new_client.exists("/e")
             assert stat is None
@@ -271,7 +324,9 @@ def test_negotiated_session_timeout():
         connection_string = zk.get_connection_string()
 
         # validate typical case - requested == negotiated
-        with pookeeper.allocate(connection_string, session_timeout=TICK_TIME * 4) as client:
+        with pookeeper.allocate(
+            connection_string, session_timeout=TICK_TIME * 4
+        ) as client:
             client.sync("/")
             assert client.negotiated_session_timeout == TICK_TIME * 4
 
@@ -281,7 +336,9 @@ def test_negotiated_session_timeout():
             assert client.negotiated_session_timeout == TICK_TIME * 2
 
         # validate upper limit
-        with pookeeper.allocate(connection_string, session_timeout=TICK_TIME * 30) as client:
+        with pookeeper.allocate(
+            connection_string, session_timeout=TICK_TIME * 30
+        ) as client:
             client.sync("/")
             assert client.negotiated_session_timeout == TICK_TIME * 20
 
@@ -321,20 +378,19 @@ def test_bogus_auth():
         connection_string = zk.get_connection_string()
 
         with pookeeper.allocate(
-                connection_string,
-                session_timeout=0.8,
-                auth_data=[("bogus", bytearray("authdata".encode('utf-8')))]
+            connection_string,
+            session_timeout=0.8,
+            auth_data=[("bogus", bytearray(b"authdata"))],
         ) as client:
-
             try:
                 client.exists("/zookeeper")
-                assert False, "Allocation should have thrown an AuthFailedError"
+                raise AssertionError("Allocation should have thrown an AuthFailedError")
             except pookeeper.AuthFailedError:
                 pass
 
             try:
                 client.exists("/zookeeper")
-                assert False, "Allocation should have thrown an AuthFailedError"
+                raise AssertionError("Allocation should have thrown an AuthFailedError")
             except pookeeper.AuthFailedError:
                 pass
 
@@ -345,10 +401,15 @@ def test_persistent():
 
         data_initial = _random_data()
         with pookeeper.allocate(connection_string, session_timeout=0.8) as client:
-            client.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=data_initial)
+            client.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Persistent(),
+                data=data_initial,
+            )
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as client:
-            data, stat = client.get_data("/pookie")
+            _data, stat = client.get_data("/pookie")
             assert isinstance(stat, Stat)
             assert stat.dataLength == len(data_initial)
 
@@ -363,7 +424,12 @@ def test_ephemeral():
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
             random_data = _random_data()
-            z.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Ephemeral(), data=random_data)
+            z.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Ephemeral(),
+                data=random_data,
+            )
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
             assert not z.exists("/pookie")
@@ -377,30 +443,39 @@ def test_ephemeral_sequential():
             z.create("/root", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
 
             data_one = _random_data()
-            path_one = z.create("/root/pookie",
-                                pookeeper.CREATOR_ALL_ACL, pookeeper.EphemeralSequential(),
-                                data=data_one)
+            path_one = z.create(
+                "/root/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.EphemeralSequential(),
+                data=data_one,
+            )
             data_two = _random_data()
-            path_two = z.create("/root/pookie",
-                                pookeeper.CREATOR_ALL_ACL, pookeeper.EphemeralSequential(),
-                                data=data_two)
+            path_two = z.create(
+                "/root/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.EphemeralSequential(),
+                data=data_two,
+            )
             data_three = _random_data()
-            path_three = z.create("/root/pookie",
-                                  pookeeper.CREATOR_ALL_ACL, pookeeper.EphemeralSequential(),
-                                  data=data_three)
+            path_three = z.create(
+                "/root/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.EphemeralSequential(),
+                data=data_three,
+            )
 
             children, _ = z.get_children("/root")
             children = sorted(children)
             assert len(children) == 3
-            assert children[0] == path_one[len("/root/"):]
-            assert children[1] == path_two[len("/root/"):]
-            assert children[2] == path_three[len("/root/"):]
+            assert children[0] == path_one[len("/root/") :]
+            assert children[1] == path_two[len("/root/") :]
+            assert children[2] == path_three[len("/root/") :]
 
-            dat, stat = z.get_data(path_one)
+            dat, _stat = z.get_data(path_one)
             assert dat == data_one
-            dat, stat = z.get_data(path_two)
+            dat, _stat = z.get_data(path_two)
             assert dat == data_two
-            dat, stat = z.get_data(path_three)
+            dat, _stat = z.get_data(path_three)
             assert dat == data_three
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
@@ -420,49 +495,55 @@ def test_persistent_sequential():
             z.create("/root", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
 
             data_one = _random_data()
-            path_one = z.create("/root/pookie",
-                                pookeeper.CREATOR_ALL_ACL, pookeeper.PersistentSequential(),
-                                data=data_one)
+            path_one = z.create(
+                "/root/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.PersistentSequential(),
+                data=data_one,
+            )
             children, _ = z.get_children("/root")
             assert len(children) == 1
-            assert children[0] == path_one[len("/root/"):]
+            assert children[0] == path_one[len("/root/") :]
 
-            dat, stat = z.get_data(path_one)
+            dat, _stat = z.get_data(path_one)
             assert dat == data_one
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
             children, _ = z.get_children("/root")
             assert len(children) == 1
-            assert children[0] == path_one[len("/root/"):]
-            dat, stat = z.get_data(path_one)
+            assert children[0] == path_one[len("/root/") :]
+            dat, _stat = z.get_data(path_one)
             assert dat == data_one
 
             data_two = _random_data()
-            path_two = z.create("/root/pookie",
-                                pookeeper.CREATOR_ALL_ACL, pookeeper.PersistentSequential(),
-                                data=data_two)
+            path_two = z.create(
+                "/root/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.PersistentSequential(),
+                data=data_two,
+            )
 
             children, _ = z.get_children("/root")
             assert len(children) == 2
             children = sorted(children)
-            assert children[0] == path_one[len("/root/"):]
-            assert children[1] == path_two[len("/root/"):]
+            assert children[0] == path_one[len("/root/") :]
+            assert children[1] == path_two[len("/root/") :]
 
-            dat, stat = z.get_data(path_one)
+            dat, _stat = z.get_data(path_one)
             assert dat == data_one
-            dat, stat = z.get_data(path_two)
+            dat, _stat = z.get_data(path_two)
             assert dat == data_two
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
             children, _ = z.get_children("/root")
             assert len(children) == 2
             children = sorted(children)
-            assert children[0] == path_one[len("/root/"):]
-            assert children[1] == path_two[len("/root/"):]
+            assert children[0] == path_one[len("/root/") :]
+            assert children[1] == path_two[len("/root/") :]
 
-            dat, stat = z.get_data(path_one)
+            dat, _stat = z.get_data(path_one)
             assert dat == data_one
-            dat, stat = z.get_data(path_two)
+            dat, _stat = z.get_data(path_two)
             assert dat == data_two
 
             pookeeper.delete(z, "/root")
@@ -476,7 +557,12 @@ def test_data():
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
             random_data = _random_data()
-            z.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent(), data=random_data)
+            z.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.Persistent(),
+                data=random_data,
+            )
 
             data, stat = z.get_data("/pookie")
             assert data == random_data
@@ -498,7 +584,11 @@ def test_acls():
         connection_string = zk.get_connection_string()
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
-            z.create("/pookie", pookeeper.CREATOR_ALL_ACL + pookeeper.READ_ACL_UNSAFE, pookeeper.Persistent())
+            z.create(
+                "/pookie",
+                pookeeper.CREATOR_ALL_ACL + pookeeper.READ_ACL_UNSAFE,
+                pookeeper.Persistent(),
+            )
             acls, stat = z.get_acls("/pookie")
             assert len(acls) == 2
             for acl in acls:
@@ -514,13 +604,14 @@ def test_transaction():
         connection_string = zk.get_connection_string()
 
         with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
-
             # this should fail because /bar does not exist
             z.create("/foo", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
             stat = z.exists("/foo")
 
             transaction = z.allocate_transaction()
-            transaction.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+            transaction.create(
+                "/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent()
+            )
             transaction.check("/foo", stat.version)
             transaction.check("/bar", stat.version)
             transaction.delete("/foo", stat.version)
@@ -531,29 +622,41 @@ def test_transaction():
 
             # this should succeed
             transaction = z.allocate_transaction()
-            transaction.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
+            transaction.create(
+                "/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent()
+            )
             transaction.check("/foo", stat.version)
             transaction.delete("/foo", stat.version)
             transaction.commit()
 
             try:
-                transaction.create("/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent())
-                assert False, "Transaction already committed - create should have failed"
+                transaction.create(
+                    "/pookie", pookeeper.CREATOR_ALL_ACL, pookeeper.Persistent()
+                )
+                raise AssertionError(
+                    "Transaction already committed - create should have failed"
+                )
             except ValueError:
                 pass
             try:
                 transaction.check("/foo", stat.version)
-                assert False, "Transaction already committed - check should have failed"
+                raise AssertionError(
+                    "Transaction already committed - check should have failed"
+                )
             except ValueError:
                 pass
             try:
                 transaction.delete("/foo", stat.version)
-                assert False, "Transaction already committed - delete should have failed"
+                raise AssertionError(
+                    "Transaction already committed - delete should have failed"
+                )
             except ValueError:
                 pass
             try:
                 transaction.commit()
-                assert False, "Transaction already committed - commit should have failed"
+                raise AssertionError(
+                    "Transaction already committed - commit should have failed"
+                )
             except ValueError:
                 pass
 
@@ -613,7 +716,12 @@ def test_transaction():
 
 class WatcherCounter(Watcher):
     def __init__(
-            self, session_connected=0, session_expired=0, auth_failed=0, connection_dropped=0, connection_closed=0
+        self,
+        session_connected=0,
+        session_expired=0,
+        auth_failed=0,
+        connection_dropped=0,
+        connection_closed=0,
     ):
         self._session_connected = session_connected
         self._session_expired = session_expired
@@ -623,12 +731,13 @@ class WatcherCounter(Watcher):
         self._state_lock = threading.RLock()
 
     def __repr__(self):
-        return "WatcherCounter(%s, %s, %s, %s, %s)" % (
-            self._session_connected,
-            self._session_expired,
-            self._auth_failed,
-            self._connection_dropped,
-            self._connection_closed,
+        return (
+            "WatcherCounter("
+            f"{self._session_connected}, "
+            f"{self._session_expired}, "
+            f"{self._auth_failed}, "
+            f"{self._connection_dropped}, "
+            f"{self._connection_closed})"
         )
 
     def session_connected(self, session_id, session_password, read_only):

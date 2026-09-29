@@ -1,19 +1,17 @@
-"""
-Copyright 2012 the original author or authors
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
-"""
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 from pookeeper.archive import InputArchive, OutputArchive
 from pookeeper.packets.proto.ConnectRequest import ConnectRequest
@@ -48,7 +46,7 @@ def test_int():
     ia = InputArchive(oa.buffer)
     for b in range(256):
         r = ia.read_int("tag_" + str(b))
-        assert type(r) == int
+        assert type(r) is int
         assert b == r
 
 
@@ -77,9 +75,9 @@ def test_vector():
     oa.end_vector(v, "tag")
 
     ia = InputArchive(oa.buffer)
-    l = ia.start_vector("tag")
+    length = ia.start_vector("tag")
     vv = []
-    for i in range(l):
+    for i in range(length):
         vv.append(ia.read_int("tag_" + str(i)))
     ia.end_vector("tag")
     assert v == vv
@@ -87,7 +85,9 @@ def test_vector():
 
 def test_connect_request():
     oa = OutputArchive()
-    original = ConnectRequest(1, 3, 10, 123456, bytearray("secret", encoding="UTF-8"), True)
+    original = ConnectRequest(
+        1, 3, 10, 123456, bytearray("secret", encoding="UTF-8"), True
+    )
     original.serialize(oa, "Foo")
 
     ia = InputArchive(oa.buffer)

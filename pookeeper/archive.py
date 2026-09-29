@@ -1,19 +1,17 @@
-"""
- Copyright 2012 the original author or authors
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-"""
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import struct
 
@@ -46,8 +44,8 @@ class OutputArchive:
     def write_int(self, i, tag):
         self.buffer.extend(struct.pack("!i", i))
 
-    def write_long(self, l, tag):
-        self.buffer.extend(struct.pack("!q", l))
+    def write_long(self, value, tag):
+        self.buffer.extend(struct.pack("!q", value))
 
     def write_string(self, s, tag):
         if not s:
@@ -80,11 +78,11 @@ class InputArchive:
         pass
 
     def start_vector(self, tag: str):
-        len = self.read_int(tag)
-        if len == -1:
+        length = self.read_int(tag)
+        if length == -1:
             return None
         else:
-            return len
+            return length
 
     def end_vector(self, tag: str):
         pass
@@ -108,22 +106,22 @@ class InputArchive:
         return int(struct.unpack_from("!q", self.buffer, index)[0])
 
     def read_string(self, tag: str):
-        l = self.read_int(tag)
-        if l < 0:
+        length = self.read_int(tag)
+        if length < 0:
             return None
         else:
             index = self.offset
-            self.offset += l
-            return str(self.buffer[index : index + l].decode("utf-8"))
+            self.offset += length
+            return str(self.buffer[index : index + length].decode("utf-8"))
 
     def read_buffer(self, tag: str):
-        l = self.read_int(tag)
-        if l < 0:
+        length = self.read_int(tag)
+        if length < 0:
             return None
         else:
             index = self.offset
-            self.offset += l
-            return self.buffer[index : index + l]
+            self.offset += length
+            return self.buffer[index : index + length]
 
     def read_record(self, r, tag: str):
         return r.deserialize(self, tag)

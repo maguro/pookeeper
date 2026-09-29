@@ -1,29 +1,28 @@
-"""
- Copyright 2024 the original author or authors
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-"""
 import logging
 import threading
+from collections.abc import Callable
 from queue import Queue
-from typing import Callable, Optional
 
 LOGGER = logging.getLogger(__name__)
 
 
 class Events:
-    _event_thread_completed:threading.Event
+    _event_thread_completed: threading.Event
     _event_thread: threading.Thread
 
     def __init__(self, client_id: int):
@@ -44,14 +43,16 @@ class Events:
                     try:
                         notification()
 
-                    except Exception as e:
-                        LOGGER.exception(f"Unforeseen error during notification: {str(e)}")
+                    except Exception:
+                        LOGGER.exception("Unforeseen error during notification")
 
             finally:
-                LOGGER.debug('Event loop completed')
+                LOGGER.debug("Event loop completed")
                 self._event_thread_completed.set()
 
-        self._event_thread = threading.Thread(target=event_worker, name=f"pookeeper-event-{self.client_id}")
+        self._event_thread = threading.Thread(
+            target=event_worker, name=f"pookeeper-event-{self.client_id}"
+        )
         self._event_thread.daemon = True
         self._event_thread.start()
 
@@ -59,7 +60,7 @@ class Events:
         self._events.put(self)
         self._event_thread_completed.wait()
 
-    def join(self, timeout: Optional[float] = None) -> bool:
+    def join(self, timeout: float | None = None) -> bool:
         """Block until the event thread completes.
 
         If the event thread completed on entry, return immediately. Otherwise,
@@ -75,7 +76,7 @@ class Events:
         """
         return self._event_thread_completed.wait(timeout)
 
-    def put(self, item: Callable, block: bool = True, timeout: Optional[int] = None):
+    def put(self, item: Callable, block: bool = True, timeout: int | None = None):
         """Put an event notification into the queue.
 
         If optional args 'block' is true and 'timeout' is None (the default),

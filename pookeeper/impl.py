@@ -1,19 +1,17 @@
-"""
- Copyright 2012 the original author or authors
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-"""
+# Copyright the original author or authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 import logging
 import random
@@ -22,17 +20,17 @@ import socket
 import struct
 import threading
 import time
+from collections.abc import Callable
 from queue import Empty, Queue
 from time import time as _time
-from typing import Callable, Optional, Set, Tuple
 
 from pookeeper import (
     AUTH_FAILED,
-    AuthFailedError,
     CLOSED,
     CONNECTING,
     CONNECTION_DROPPED_FOR_TEST,
     EXCEPTIONS,
+    AuthFailedError,
     Watcher,
     WatcherEventType,
 )
@@ -55,7 +53,7 @@ class ConnectionDropped(RuntimeError):
 
     def __init__(self, *args, **kwargs):
         # noinspection PyArgumentList
-        super(ConnectionDropped, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class SessionTimeout(RuntimeError):
@@ -63,7 +61,7 @@ class SessionTimeout(RuntimeError):
 
     def __init__(self, *args, **kwargs):
         # noinspection PyArgumentList
-        super(SessionTimeout, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class SessionExpired(RuntimeError):
@@ -71,7 +69,7 @@ class SessionExpired(RuntimeError):
 
     def __init__(self, *args, **kwargs):
         # noinspection PyArgumentList
-        super(SessionExpired, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class ConnectionDroppedForTest(RuntimeError):
@@ -79,7 +77,7 @@ class ConnectionDroppedForTest(RuntimeError):
 
     def __init__(self, *args, **kwargs):
         # noinspection PyArgumentList
-        super(ConnectionDroppedForTest, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class ReaderThread(threading.Thread):
@@ -91,22 +89,29 @@ class ReaderThread(threading.Thread):
     cleanup and state orchestration.
     """
 
-    def __init__(self, client, events: Events,
-                 soc: socket.socket,
-                 reader_done: threading.Event, read_timeout: float):
-        super(ReaderThread, self).__init__(name="reader-%s" % client.id)
+    def __init__(
+        self,
+        client,
+        events: Events,
+        soc: socket.socket,
+        reader_done: threading.Event,
+        read_timeout: float,
+    ):
+        super().__init__(name=f"reader-{client.id}")
         self.client = client
         self.events = events
         self.soc = soc
         self.reader_done = reader_done
         self.read_timeout = read_timeout
 
-    def run(self):
+    def run(self):  # noqa: C901
         LOGGER.debug("Reader started")
         try:
             while True:
                 try:
-                    header, input_archive = _read_header_and_body(self.soc, self.read_timeout)
+                    header, input_archive = _read_header_and_body(
+                        self.soc, self.read_timeout
+                    )
                     if header.xid == -2:
                         LOGGER.debug("Received PING")
                         continue
@@ -119,59 +124,105 @@ class ReaderThread(threading.Thread):
 
                         path = watcher_event.path
                         if path is None:
-                            LOGGER.warning("Received watcher event without a path %r", watcher_event)
+                            LOGGER.warning(
+                                "Received watcher event without a path %r",
+                                watcher_event,
+                            )
                             continue
 
                         watchers = set()
                         with self.client._state_lock:
-                            if watcher_event.event_type == WatcherEventType.CREATED_EVENT:
+                            if (
+                                watcher_event.event_type
+                                == WatcherEventType.CREATED_EVENT
+                            ):
                                 LOGGER.debug("Received created event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
-                                watchers |= self.client._exists_watchers.pop(path, set())
+                                watchers |= self.client._exists_watchers.pop(
+                                    path, set()
+                                )
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.events.put(_event_factory(path, watchers, lambda w, p: w.node_created(p)))
-                            elif watcher_event.event_type == WatcherEventType.DELETE_EVENT:
+                                self.events.put(
+                                    _event_factory(
+                                        path, watchers, lambda w, p: w.node_created(p)
+                                    )
+                                )
+                            elif (
+                                watcher_event.event_type
+                                == WatcherEventType.DELETE_EVENT
+                            ):
                                 LOGGER.debug("Received deleted event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
-                                watchers |= self.client._exists_watchers.pop(path, set())
+                                watchers |= self.client._exists_watchers.pop(
+                                    path, set()
+                                )
                                 watchers |= self.client._child_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.events.put(_event_factory(path, watchers, lambda w, p: w.node_deleted(p)))
-                            elif watcher_event.event_type == WatcherEventType.DATA_CHANGED_EVENT:
+                                self.events.put(
+                                    _event_factory(
+                                        path, watchers, lambda w, p: w.node_deleted(p)
+                                    )
+                                )
+                            elif (
+                                watcher_event.event_type
+                                == WatcherEventType.DATA_CHANGED_EVENT
+                            ):
                                 LOGGER.debug("Received data changed event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
-                                watchers |= self.client._exists_watchers.pop(path, set())
+                                watchers |= self.client._exists_watchers.pop(
+                                    path, set()
+                                )
                                 LOGGER.debug(" with %r", watchers)
 
-                                self.events.put(_event_factory(path, watchers, lambda w, p: w.data_changed(p)))
-                            elif watcher_event.event_type == WatcherEventType.CHILD_CHANGED_EVENT:
+                                self.events.put(
+                                    _event_factory(
+                                        path, watchers, lambda w, p: w.data_changed(p)
+                                    )
+                                )
+                            elif (
+                                watcher_event.event_type
+                                == WatcherEventType.CHILD_CHANGED_EVENT
+                            ):
                                 LOGGER.debug("Received children changed event %s", path)
                                 watchers |= self.client._child_watchers.pop(path, set())
                                 LOGGER.debug(" with %r", watchers)
 
                                 self.events.put(
-                                    _event_factory(path, watchers, lambda w, p: w.children_changed(p))
+                                    _event_factory(
+                                        path,
+                                        watchers,
+                                        lambda w, p: w.children_changed(p),
+                                    )
                                 )
                             else:
-                                LOGGER.warning("Received unknown event %r", watcher_event.event_type)
+                                LOGGER.warning(
+                                    "Received unknown event %r",
+                                    watcher_event.event_type,
+                                )
 
                     else:
                         LOGGER.debug("Reading for header %r", header)
 
                         with self.client._state_lock:
                             try:
-                                request, response, callback, xid = self.client._pending.get_nowait()
+                                _request, response, callback, xid = (
+                                    self.client._pending.get_nowait()
+                                )
                             except Empty:
                                 raise RuntimeError(
-                                    "Received response with xid %r but no request is pending" % header.xid
-                                )
+                                    f"Received response with xid {header.xid!r} "
+                                    "but no request is pending"
+                                ) from None
 
                             if header.zxid and header.zxid > 0:
                                 self.client.session.last_zxid = header.zxid
                             if header.xid != xid:
-                                raise RuntimeError("xids do not match, expected %r received %r" % (xid, header.xid))
+                                raise RuntimeError(  # noqa: TRY301
+                                    f"xids do not match, expected {xid!r} "
+                                    f"received {header.xid!r}"
+                                )
 
                             callback_exception = None
                             if header.err:
@@ -198,12 +249,12 @@ class ReaderThread(threading.Thread):
                     LOGGER.warning("Session timeout for reader")
                     self.soc.close()
                     raise
-                except Exception as e:
-                    LOGGER.exception(f"Unforeseen error: {str(e)}")
+                except Exception:
+                    LOGGER.exception("Unforeseen error")
                     raise
 
-        except Exception as e:
-            LOGGER.exception(f"Unforeseen error: {str(e)}")
+        except Exception:
+            LOGGER.exception("Unforeseen error")
             # A dead reader must take the connection down with it: closing the
             # socket makes the writer's next send fail into its reconnect path,
             # which drains the pending calls.
@@ -213,7 +264,9 @@ class ReaderThread(threading.Thread):
             LOGGER.debug("Reader stopped")
 
 
-def _event_factory(path: str, watchers: Set[Watcher], callback: Callable[[Watcher, str], None]) -> Callable:
+def _event_factory(
+    path: str, watchers: set[Watcher], callback: Callable[[Watcher, str], None]
+) -> Callable:
     def event():
         for watcher in watchers:
             try:
@@ -228,11 +281,11 @@ class WriterThread(threading.Thread):
     soc: socket.socket
 
     def __init__(self, client, events: Events):
-        super(WriterThread, self).__init__(name="writer-%s" % client.id)
+        super().__init__(name=f"writer-{client.id}")
         self.client = client
         self.events = events
 
-    def run(self):
+    def run(self):  # noqa: C901
         LOGGER.debug("Starting writer %r", self.client.hosts)
 
         writer_done = False
@@ -255,13 +308,17 @@ class WriterThread(threading.Thread):
 
                 reader_done = threading.Event()
 
-                reader_thread = ReaderThread(self.client, self.events, self.soc, reader_done, self.read_timeout)
+                reader_thread = ReaderThread(
+                    self.client, self.events, self.soc, reader_done, self.read_timeout
+                )
                 reader_thread.start()
 
                 xid = 0
                 while not writer_done:
                     try:
-                        request, _, _ = self.client._queue.peek(True, self.read_timeout / 2.0)
+                        request, _, _ = self.client._queue.peek(
+                            True, self.read_timeout / 2.0
+                        )
                         LOGGER.debug("Sending %r", request)
 
                         xid += 1
@@ -301,14 +358,14 @@ class WriterThread(threading.Thread):
                 self.client._closed(AUTH_FAILED)
                 break
             except (ConnectionDropped, SessionTimeout) as e:
-                LOGGER.warning(f"Need to reconnect: {str(e)}")
+                LOGGER.warning(f"Need to reconnect: {e!s}")
                 self.client._disconnected()
-                time.sleep(random.random())
+                time.sleep(random.random())  # noqa: S311
                 break
-            except Exception as e:
-                LOGGER.exception(f"Need to reconnect: {str(e)}")
+            except Exception:
+                LOGGER.exception("Need to reconnect")
                 self.client._disconnected()
-                time.sleep(random.random())
+                time.sleep(random.random())  # noqa: S311
             finally:
                 if not writer_done:
                     # The read thread will close the socket since there
@@ -322,7 +379,9 @@ class WriterThread(threading.Thread):
         LOGGER.info("Connecting to %s:%s", host, port)
 
         if LOGGER.isEnabledFor(logging.DEBUG):
-            encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session.passwd)
+            encoded_session_password = "".join(
+                f"{x:02x}" for x in self.client.session.passwd
+            )
             LOGGER.debug(
                 "    Using session_id: %r session_passwd: 0x%s",
                 self.client.session.id,
@@ -344,33 +403,52 @@ class WriterThread(threading.Thread):
         )
         connection_response = ConnectResponse(None, None, None, None, None)
 
-        zxid = _invoke(soc, self.client.connect_timeout, connect_request, connection_response)
+        zxid = _invoke(
+            soc, self.client.connect_timeout, connect_request, connection_response
+        )
 
         if connection_response.timeOut < 0:
             LOGGER.error("Session expired")
-            self.events.put(lambda: self.client._default_watcher.session_expired(self.client.session.id))
+            self.events.put(
+                lambda: self.client._default_watcher.session_expired(
+                    self.client.session.id
+                )
+            )
             raise SessionExpired()
         else:
             if zxid:
                 self.client.session.last_zxid = zxid
             self.client.session.id = connection_response.sessionId
-            self.client.negotiated_session_timeout = connection_response.timeOut / 1000.0
-            self.connect_timeout = connection_response.timeOut / len(self.client.hosts) / 1000.0
+            self.client.negotiated_session_timeout = (
+                connection_response.timeOut / 1000.0
+            )
+            self.connect_timeout = (
+                connection_response.timeOut / len(self.client.hosts) / 1000.0
+            )
             self.read_timeout = connection_response.timeOut * 2.0 / 3.0 / 1000.0
             self.client.session.passwd = connection_response.passwd
 
             if LOGGER.isEnabledFor(logging.DEBUG):
-                encoded_session_password = ''.join('{:02x}'.format(x) for x in self.client.session.passwd)
+                encoded_session_password = "".join(
+                    f"{x:02x}" for x in self.client.session.passwd
+                )
                 LOGGER.debug(
                     "Session created, session_id: %r session_passwd: 0x%s",
                     self.client.session.id,
                     encoded_session_password,
                 )
-                LOGGER.debug("    negotiated session timeout: %s", self.client.negotiated_session_timeout)
+                LOGGER.debug(
+                    "    negotiated session timeout: %s",
+                    self.client.negotiated_session_timeout,
+                )
                 LOGGER.debug("    connect timeout: %s", self.connect_timeout)
                 LOGGER.debug("    read timeout: %s", self.read_timeout)
 
-        self.client._connected(connection_response.sessionId, connection_response.passwd, connection_response.readOnly)
+        self.client._connected(
+            connection_response.sessionId,
+            connection_response.passwd,
+            connection_response.readOnly,
+        )
 
         for scheme, auth in self.client.auth_data:
             ap = AuthPacket(0, scheme, auth)
@@ -379,7 +457,9 @@ class WriterThread(threading.Thread):
                 self.client.session.last_zxid = zxid
 
 
-def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Optional[int] = None) -> Optional[int]:
+def _invoke(
+    soc: socket.socket, timeout: float, request, response=None, xid: int | None = None
+) -> int | None:
     oa = OutputArchive()
     if xid:
         oa.write_int(xid, "xid")
@@ -401,7 +481,9 @@ def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Opt
         header = ReplyHeader(None, None, None)
         header.deserialize(ia, "header")
         if header.xid != xid:
-            raise RuntimeError("xids do not match, expected %r received %r" % (xid, header.xid))
+            raise RuntimeError(
+                f"xids do not match, expected {xid!r} received {header.xid!r}"
+            )
         if header.zxid > 0:
             zxid = header.zxid
         if header.err:
@@ -416,7 +498,7 @@ def _invoke(soc: socket.socket, timeout: float, request, response=None, xid: Opt
     return zxid
 
 
-def _submit(soc: socket.socket, request, timeout, xid: Optional[int] = None) -> None:
+def _submit(soc: socket.socket, request, timeout, xid: int | None = None) -> None:
     oa = OutputArchive()
     oa.write_int(xid, "xid")
     if request.type:
@@ -448,7 +530,9 @@ def _write(soc: socket.socket, buffer: bytes, timeout: float) -> float:
     return timeout
 
 
-def _read_header_and_body(soc: socket.socket, timeout: float) -> Tuple[ReplyHeader, InputArchive]:
+def _read_header_and_body(
+    soc: socket.socket, timeout: float
+) -> tuple[ReplyHeader, InputArchive]:
     msg, timeout = _read(soc, 4, timeout)
 
     length = struct.unpack_from("!i", msg, 0)[0]
@@ -462,7 +546,7 @@ def _read_header_and_body(soc: socket.socket, timeout: float) -> Tuple[ReplyHead
     return header, input_archive
 
 
-def _read(soc: socket.socket, length: int, timeout: float) -> Tuple[bytearray, float]:
+def _read(soc: socket.socket, length: int, timeout: float) -> tuple[bytearray, float]:
     msg = bytearray()
     while len(msg) < length:
         if timeout <= 0:
