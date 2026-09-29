@@ -292,7 +292,8 @@ class WriterThread(threading.Thread):
 
                 self.soc = self.client._allocate_socket()
 
-                self.client._state = CONNECTING  # type: ignore[attr-defined]
+                with self.client._state_lock:
+                    self.client.state = CONNECTING
 
                 self._connect(self.soc, host, port)
 
@@ -565,7 +566,7 @@ def _read(soc: socket.socket, length: int, timeout: float) -> tuple[bytearray, f
 
 class PeekableQueue(Queue["QueuedCall"]):
     def __init__(self, maxsize: int = 0) -> None:
-        Queue.__init__(self, maxsize=0)
+        Queue.__init__(self, maxsize=maxsize)
 
     def peek(self, block: bool = True, timeout: float | None = None) -> QueuedCall:
         """Return the first item in the queue but do not remove it from the queue.

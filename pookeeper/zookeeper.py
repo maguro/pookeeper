@@ -406,15 +406,13 @@ class Client33:
         )
         response = ExistsResponse(None)
 
-        def register_watcher(
-            exception: ZookeeperError | type[NoNodeError] | None,
-        ) -> None:
+        def register_watcher(exception: ZookeeperError | None) -> None:
             if not exception:
                 with self._state_lock:
                     self._data_watchers[_prefix_root(self.chroot, path)].add(
                         watcher or self._default_watcher
                     )
-            elif exception == NoNodeError:
+            elif isinstance(exception, NoNodeError):
                 with self._state_lock:
                     self._exists_watchers[_prefix_root(self.chroot, path)].add(
                         watcher or self._default_watcher
@@ -427,7 +425,6 @@ class Client33:
                 register_watcher if (watch or watcher) else lambda e: True,
             )
         except NoNodeError:
-            register_watcher(NoNodeError)
             return None
         else:
             return response.stat if response.stat.czxid != -1 else None

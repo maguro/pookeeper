@@ -21,6 +21,9 @@ from types import SimpleNamespace
 import pytest
 
 from pookeeper import (
+    AUTH_FAILED,
+    CONNECTING,
+    CONNECTION_DROPPED_FOR_TEST,
     CREATE_CODES,
     EXCEPTIONS,
     APIError,
@@ -243,3 +246,39 @@ def test_reader_death_closes_socket(monkeypatch):
 
     assert soc.closed
     assert reader_done.is_set()
+
+
+def test_peekable_queue_respects_maxsize():
+    assert impl.PeekableQueue(maxsize=2).maxsize == 2
+
+
+def test_writer_marks_client_connecting(monkeypatch):
+    """The writer moves the client to CONNECTING before each connect attempt."""
+
+    class ClosableSocket:
+        def close(self):
+            pass
+
+    client = SimpleNamespace(
+        id=1,
+        hosts=[("localhost", 2181)],
+        allow_reconnect=True,
+        state=CONNECTION_DROPPED_FOR_TEST,
+        _state_lock=threading.RLock(),
+        _allocate_socket=ClosableSocket,
+        closed_with=[],
+    )
+    client._closed = client.closed_with.append
+
+    states_at_connect = []
+
+    def connect(self, soc, host, port):
+        states_at_connect.append(client.state)
+        raise AuthFailedError()
+
+    monkeypatch.setattr(impl.WriterThread, "_connect", connect)
+
+    impl.WriterThread(client, None).run()
+
+    assert states_at_connect == [CONNECTING]
+    assert client.closed_with == [AUTH_FAILED]

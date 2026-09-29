@@ -96,6 +96,33 @@ def test_exists_default_watcher():
         verifyNoMoreInteractions(watcher)
 
 
+def test_exists_without_watch_registers_no_watcher():
+    """An unwatched exists() on a missing node must not register a watcher."""
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+        default_watcher = mock()
+        explicit_watcher = mock()
+        with pookeeper.allocate(connection_string, watcher=default_watcher) as client:
+            assert not client.exists("/pookie")
+            assert not client.exists("/pookie", watcher=explicit_watcher)
+            client.create(
+                "/pookie",
+                pookeeper.OPEN_ACL_UNSAFE,
+                pookeeper.Ephemeral(),
+                data=_random_data(),
+            )
+            stat = client.exists("/pookie")
+            client.delete("/pookie", stat.version)
+
+        mockito.verify(explicit_watcher).node_created("/pookie")
+        verifyNoMoreInteractions(explicit_watcher)
+        inorder.verify(default_watcher).session_connected(
+            matchers.any(int), matchers.any(bytearray), False
+        )
+        inorder.verify(default_watcher).connection_closed()
+        verifyNoMoreInteractions(default_watcher)
+
+
 def test_set_data_default_watcher():
     with container.Zookeeper() as zk:
         connection_string = zk.get_connection_string()
