@@ -17,7 +17,7 @@ under the License.
 from typing import Optional
 
 from testcontainers.core.container import DockerContainer
-from testcontainers.core.waiting_utils import wait_for_logs
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
 
 class Zookeeper(DockerContainer):
@@ -35,8 +35,8 @@ class Zookeeper(DockerContainer):
         Args:
             timeout (int, optional): Timeout for container to be ready. Defaults to 60.
         """
+        self.waiting_for(LogMessageWaitStrategy(r"binding to port").with_startup_timeout(timeout))
         super().start()
-        wait_for_logs(self, r"binding to port", timeout=timeout)
         return self
 
     def get_connection_string(self):
