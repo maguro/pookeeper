@@ -27,17 +27,17 @@ class Events:
 
     def __init__(self, client_id: int):
         self.client_id = client_id
-        self._events: Queue = Queue()
+        self._events: Queue[Callable[[], None] | Events] = Queue()
 
-    def start(self):
+    def start(self) -> None:
         self._event_thread_completed = threading.Event()
 
-        def event_worker():
+        def event_worker() -> None:
             try:
                 while True:
                     notification = self._events.get()
 
-                    if notification == self:
+                    if isinstance(notification, Events):
                         break
 
                     try:
@@ -56,7 +56,7 @@ class Events:
         self._event_thread.daemon = True
         self._event_thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         self._events.put(self)
         self._event_thread_completed.wait()
 
@@ -76,7 +76,12 @@ class Events:
         """
         return self._event_thread_completed.wait(timeout)
 
-    def put(self, item: Callable, block: bool = True, timeout: int | None = None):
+    def put(
+        self,
+        item: Callable[[], None],
+        block: bool = True,
+        timeout: float | None = None,
+    ) -> None:
         """Put an event notification into the queue.
 
         If optional args 'block' is true and 'timeout' is None (the default),

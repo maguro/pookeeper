@@ -13,14 +13,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
-from collections.abc import Callable
 from enum import IntEnum
 from posixpath import split
+from typing import TYPE_CHECKING, NoReturn, TypeVar
 
 from pookeeper.packets.data import Id
 from pookeeper.packets.data.ACL import ACL
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from pookeeper._typing import AuthData
+    from pookeeper.zookeeper import Client33, Client34
 
 __version__ = "0.1.0-dev"
 
@@ -28,15 +36,15 @@ LOGGER = logging.getLogger(__name__)
 
 
 def allocate(
-    hosts,
-    session_id=None,
+    hosts: str,
+    session_id: int | None = None,
     session_passwd: bytearray | None = None,
-    session_timeout=30.0,
-    auth_data=None,
-    read_only=False,
-    watcher=None,
-    allow_reconnect=True,
-):
+    session_timeout: float = 30.0,
+    auth_data: AuthData | None = None,
+    read_only: bool = False,
+    watcher: Watcher | None = None,
+    allow_reconnect: bool = True,
+) -> Client34:
     """Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
@@ -103,15 +111,15 @@ def allocate(
 
 
 def allocate_34(
-    hosts,
-    session_id=None,
+    hosts: str,
+    session_id: int | None = None,
     session_passwd: bytearray | None = None,
-    session_timeout=30.0,
-    auth_data=None,
-    read_only=False,
-    watcher=None,
-    allow_reconnect=True,
-):
+    session_timeout: float = 30.0,
+    auth_data: AuthData | None = None,
+    read_only: bool = False,
+    watcher: Watcher | None = None,
+    allow_reconnect: bool = True,
+) -> Client34:
     """Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
@@ -198,14 +206,14 @@ def allocate_34(
 
 
 def allocate_33(
-    hosts,
-    session_id=None,
+    hosts: str,
+    session_id: int | None = None,
     session_passwd: bytearray | None = None,
-    session_timeout=30.0,
-    auth_data=None,
-    watcher=None,
-    allow_reconnect=True,
-):
+    session_timeout: float = 30.0,
+    auth_data: AuthData | None = None,
+    watcher: Watcher | None = None,
+    allow_reconnect: bool = True,
+) -> Client33:
     """Create a ZooKeeper client object
 
     To create a ZooKeeper client object, the application needs to pass a
@@ -282,7 +290,7 @@ def allocate_33(
     return handle
 
 
-def delete(client, path):
+def delete(client: Client33, path: str) -> None:
     """Recursively delete a path
 
     Args:
@@ -299,7 +307,12 @@ def delete(client, path):
     LOGGER.debug("Deleted %s", path)
 
 
-def create(client, path, ACL=None, code=None):
+def create(
+    client: Client33,
+    path: str,
+    ACL: list[ACL] | None = None,
+    code: CreateCode | None = None,
+) -> None:
     """Recursively create a path, creating intermediate nodes as required.
 
     Args:
@@ -333,31 +346,33 @@ class WatcherEventType(IntEnum):
 
 
 class Watcher:
-    def session_connected(self, session_id, session_password: bytearray, read_only):
+    def session_connected(
+        self, session_id: int, session_password: bytearray, read_only: bool
+    ) -> None:
         pass
 
-    def session_expired(self, session_id):
+    def session_expired(self, session_id: int | None) -> None:
         pass
 
-    def auth_failed(self):
+    def auth_failed(self) -> None:
         pass
 
-    def connection_dropped(self):
+    def connection_dropped(self) -> None:
         pass
 
-    def connection_closed(self):
+    def connection_closed(self) -> None:
         pass
 
-    def node_created(self, path):
+    def node_created(self, path: str) -> None:
         pass
 
-    def node_deleted(self, path):
+    def node_deleted(self, path: str) -> None:
         pass
 
-    def data_changed(self, path):
+    def data_changed(self, path: str) -> None:
         pass
 
-    def children_changed(self, path):
+    def children_changed(self, path: str) -> None:
         pass
 
 
@@ -365,50 +380,50 @@ WatchersDict = defaultdict[str, set[Watcher]]
 
 
 class State:
-    def __init__(self, code, description):
+    def __init__(self, code: str, description: str) -> None:
         self.code = code
         self.description = description
 
-    def __eq__(self, other):
-        return self.code == other.code
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, State) and self.code == other.code
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.code)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.code
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
 
 
 class Connecting(State):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("CONNECTING", "Connecting")
 
 
 class Connected(State):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("CONNECTED", "Connected")
 
 
 class ConnectedRO(State):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("CONNECTED_RO", "Connected Read-Only")
 
 
 class AuthFailed(State):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("AUTH_FAILED", "Authorization Failed")
 
 
 class Closed(State):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("CLOSED", "Closed")
 
 
 class ConnectionDroppedForTest(State):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             "CONNECTION_DROPPED_FOR_TEST", "Dropped connection for testing"
         )
@@ -421,7 +436,7 @@ AUTH_FAILED = AuthFailed()
 CLOSED = Closed()
 CONNECTION_DROPPED_FOR_TEST = ConnectionDroppedForTest()
 
-CREATE_CODES = {}
+CREATE_CODES: dict[int, CreateCode] = {}
 
 
 class CreateCode:
@@ -429,13 +444,18 @@ class CreateCode:
     ephemeral: bool
     sequential: bool
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
 
 
-def _create_code(name, flags, ephemeral, sequential):
-    def decorator(klass):
-        def attributes(self, name):
+_C = TypeVar("_C", bound=CreateCode)
+
+
+def _create_code(
+    name: str, flags: int, ephemeral: bool, sequential: bool
+) -> Callable[[type[_C]], type[_C]]:
+    def decorator(klass: type[_C]) -> type[_C]:
+        def attributes(self: CreateCode, name: str) -> bool | int:
             if name == "ephemeral":
                 return ephemeral
             if name == "sequential":
@@ -444,12 +464,12 @@ def _create_code(name, flags, ephemeral, sequential):
                 return flags
             raise AttributeError(f"Attribute {name} not found")
 
-        klass.__getattr__ = attributes
+        setattr(klass, "__getattr__", attributes)  # noqa: B010
 
-        def string(self):
+        def string(self: CreateCode) -> str:
             return name
 
-        klass.__str__ = string
+        setattr(klass, "__str__", string)  # noqa: B010
 
         CREATE_CODES[flags] = klass()
         return klass
@@ -510,18 +530,21 @@ CREATOR_ALL_ACL = [ACL(Perms.ALL, Id.AUTH_IDS)]
 READ_ACL_UNSAFE = [ACL(Perms.READ, Id.ANYONE_ID_UNSAFE)]
 
 
-def _invalid_error_code():
+def _invalid_error_code() -> NoReturn:
     raise RuntimeError("Invalid error code")
 
 
-EXCEPTIONS: defaultdict[int, Callable[..., Exception]] = defaultdict(
+EXCEPTIONS: defaultdict[int, Callable[..., ZookeeperError]] = defaultdict(
     _invalid_error_code
 )
 
 
-def _zookeeper_exception(code):
-    def decorator(klass):
-        def create(*args, **kwargs):
+_E = TypeVar("_E", bound="ZookeeperError")
+
+
+def _zookeeper_exception(code: int) -> Callable[[type[_E]], type[_E]]:
+    def decorator(klass: type[_E]) -> type[_E]:
+        def create(*args: object, **kwargs: object) -> _E:
             return klass(args, kwargs)
 
         EXCEPTIONS[code] = create

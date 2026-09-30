@@ -13,11 +13,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import logging
 import socket
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from queue import Queue
+from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
 from pookeeper import (
     AUTH_FAILED,
@@ -40,8 +44,6 @@ from pookeeper import (
 )
 from pookeeper.hosts import collect_hosts
 from pookeeper.impl import ConnectionDroppedForTest, PeekableQueue, WriterThread
-from pookeeper.packets.data.ACL import ACL
-from pookeeper.packets.data.Stat import Stat
 from pookeeper.packets.proto.CheckVersionRequest import CheckVersionRequest
 from pookeeper.packets.proto.CloseRequest import CloseRequest
 from pookeeper.packets.proto.CloseResponse import CloseResponse
@@ -66,20 +68,40 @@ from pookeeper.packets.proto.TransactionRequest import TransactionRequest
 from pookeeper.packets.proto.TransactionResponse import TransactionResponse
 from pookeeper.session import Session
 
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    from pookeeper import ZookeeperError
+    from pookeeper._typing import (
+        AuthData,
+        Deserializable,
+        PendingCall,
+        Request,
+        Self,
+        TransactionResult,
+        WatcherRegistration,
+    )
+    from pookeeper.packets.data.ACL import ACL
+    from pookeeper.packets.data.Stat import Stat
+
 LOGGER = logging.getLogger(__name__)
 
 _ID = 0
 _ID_LOCK = threading.RLock()
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+_Method = Callable[Concatenate[Any, _P], _R]
 
-def log_wrapper():
+
+def log_wrapper() -> Callable[[_Method[_P, _R]], _Method[_P, _R]]:
     """A class method decorator that renames the current thread.
 
     The new name identifies the current pookeeper client.
     """
 
-    def wrapper(method):
-        def new(self, *args, **kws):
+    def wrapper(method: _Method[_P, _R]) -> _Method[_P, _R]:
+        def new(self: Any, *args: _P.args, **kws: _P.kwargs) -> _R:
             global _ID
             try:
                 name = f"pookeeper-{self.id}"
@@ -103,18 +125,19 @@ def log_wrapper():
 
 class Client33:
     id: int
+    negotiated_session_timeout: float
 
     @log_wrapper()
     def __init__(
         self,
-        hosts,
-        session_id=None,
+        hosts: str,
+        session_id: int | None = None,
         session_passwd: bytearray | None = None,
-        session_timeout=30.0,
-        auth_data=None,
+        session_timeout: float = 30.0,
+        auth_data: AuthData | None = None,
         watcher: Watcher | None = None,
-        allow_reconnect=True,
-    ):
+        allow_reconnect: bool = True,
+    ) -> None:
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
             self.chroot = zkpath.normpath(chroot)
@@ -127,7 +150,7 @@ class Client33:
         self.session_timeout = session_timeout
         self.connect_timeout = session_timeout / len(self.hosts)
         self.read_timeout = session_timeout * 2.0 / 3.0
-        self.auth_data = auth_data if auth_data else set()
+        self.auth_data: AuthData = auth_data if auth_data else set()
         self.read_only = False
 
         if LOGGER.isEnabledFor(logging.DEBUG):
@@ -149,7 +172,7 @@ class Client33:
         LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
 
         self._queue = PeekableQueue()
-        self._pending: Queue = Queue()
+        self._pending: Queue[PendingCall] = Queue()
 
         self._child_watchers: WatchersDict = defaultdict(set)
         self._data_watchers: WatchersDict = defaultdict(set)
@@ -168,14 +191,19 @@ class Client33:
 
         self._check_state()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()
 
     @log_wrapper()
-    def close(self):
+    def close(self) -> None:
         """Close this client object
 
         Once the client is closed, its session becomes invalid. All the
@@ -194,7 +222,7 @@ class Client33:
             if self.state == CLOSED:
                 return
 
-            def close(exception):
+            def close(exception: ZookeeperError | None) -> None:
                 nonlocal call_exception
                 call_exception = exception
                 LOGGER.debug("Closing handler called")
@@ -322,7 +350,9 @@ class Client33:
         self._call(request, None)
 
     @log_wrapper()
-    def exists(self, path: str, watch: bool = False, watcher=None) -> Stat | None:
+    def exists(
+        self, path: str, watch: bool = False, watcher: Watcher | None = None
+    ) -> Stat | None:
         """Return the stat of the node of the given path
 
         Return null if no such a node exists.
@@ -357,7 +387,9 @@ class Client33:
         )
         response = ExistsResponse(None)
 
-        def register_watcher(exception):
+        def register_watcher(
+            exception: ZookeeperError | type[NoNodeError] | None,
+        ) -> None:
             if not exception:
                 with self._state_lock:
                     self._data_watchers[_prefix_root(self.chroot, path)].add(
@@ -383,7 +415,7 @@ class Client33:
 
     @log_wrapper()
     def get_data(
-        self, path: str, watch: bool = False, watcher=None
+        self, path: str, watch: bool = False, watcher: Watcher | None = None
     ) -> tuple[bytearray, Stat]:
         """Return the data and the stat of the node of the given path
 
@@ -419,7 +451,7 @@ class Client33:
         )
         response = GetDataResponse(None, None)
 
-        def register_watcher(exception):
+        def register_watcher(exception: ZookeeperError | None) -> None:
             if not exception:
                 with self._state_lock:
                     self._data_watchers[_prefix_root(self.chroot, path)].add(
@@ -538,7 +570,7 @@ class Client33:
         return response.stat
 
     @log_wrapper()
-    def sync(self, path):
+    def sync(self, path: str) -> None:
         """Asynchronous sync
 
         Flushes channel between process and leader.
@@ -560,7 +592,7 @@ class Client33:
 
     @log_wrapper()
     def get_children(
-        self, path: str, watch: bool = False, watcher=None
+        self, path: str, watch: bool = False, watcher: Watcher | None = None
     ) -> tuple[list[str], Stat]:
         """Return the list of the children of the node of the given path
 
@@ -598,7 +630,7 @@ class Client33:
         )
         response = GetChildren2Response(None, None)
 
-        def register_watcher(exception):
+        def register_watcher(exception: ZookeeperError | None) -> None:
             if not exception:
                 with self._state_lock:
                     self._child_watchers[_prefix_root(self.chroot, path)].add(
@@ -613,14 +645,19 @@ class Client33:
 
         return response.children, response.stat
 
-    def _call(self, request, response, register_watcher=None):
+    def _call(
+        self,
+        request: Request,
+        response: Deserializable | None,
+        register_watcher: WatcherRegistration | None = None,
+    ) -> None:
         call_exception: BaseException | None = None
         event = threading.Event()
 
         with self._state_lock:
             self._check_state()
 
-            def callback(exception):
+            def callback(exception: ZookeeperError | None) -> None:
                 nonlocal call_exception
                 if exception:
                     call_exception = exception
@@ -635,11 +672,11 @@ class Client33:
         if call_exception:
             raise call_exception
 
-    def _allocate_socket(self):
+    def _allocate_socket(self) -> socket.socket:
         """Used to allow the replacement of a socket with a mock socket"""
         return socket.socket()
 
-    def _check_state(self):
+    def _check_state(self) -> None:
         with self._state_lock:
             if self.state == AUTH_FAILED:
                 raise AuthFailedError()
@@ -648,7 +685,9 @@ class Client33:
             if self.state == CONNECTION_DROPPED_FOR_TEST:
                 raise ConnectionDroppedForTest()
 
-    def _connected(self, session_id, session_passwd: bytearray, read_only):
+    def _connected(
+        self, session_id: int, session_passwd: bytearray, read_only: bool
+    ) -> None:
         with self._state_lock:
             LOGGER.debug("Connected %s", "read-only mode" if read_only else "")
 
@@ -659,7 +698,7 @@ class Client33:
                 )
             )
 
-    def _disconnected(self):
+    def _disconnected(self) -> None:
         assert self.state in {  # noqa: S101
             CONNECTING,
             CONNECTED,
@@ -686,7 +725,7 @@ class Client33:
             # drain queues
             self._drain(ConnectionLoss())
 
-    def _closed(self, state, session_expired=False):
+    def _closed(self, state: State, session_expired: bool = False) -> None:
         """The party is over.  Time to clean up"""
         assert state in {CLOSED, AUTH_FAILED, CONNECTION_DROPPED_FOR_TEST}  # noqa: S101
         with self._state_lock:
@@ -721,7 +760,7 @@ class Client33:
             # will kill itself
             self._events.stop()
 
-    def _drain(self, error):
+    def _drain(self, error: ZookeeperError) -> None:
         assert self._state_lock._is_owned()  # type: ignore[attr-defined]  # noqa: S101
 
         while not self._pending.empty():
@@ -743,15 +782,15 @@ class Client34(Client33):
     @log_wrapper()
     def __init__(
         self,
-        hosts,
-        session_id=None,
+        hosts: str,
+        session_id: int | None = None,
         session_passwd: bytearray | None = None,
-        session_timeout=30.0,
-        auth_data=None,
-        read_only=False,
-        watcher=None,
-        allow_reconnect=True,
-    ):
+        session_timeout: float = 30.0,
+        auth_data: AuthData | None = None,
+        read_only: bool = False,
+        watcher: Watcher | None = None,
+        allow_reconnect: bool = True,
+    ) -> None:
         Client33.__init__(
             self,
             hosts,
@@ -765,7 +804,7 @@ class Client34(Client33):
         self.read_only = read_only
 
     @log_wrapper()
-    def allocate_transaction(self):
+    def allocate_transaction(self) -> _Transaction:
         """Allocate a transaction
 
         A Transaction provides a builder object that can be used to construct
@@ -777,7 +816,7 @@ class Client34(Client33):
         """
         return _Transaction(self)
 
-    def _multi(self, operations):
+    def _multi(self, operations: list[Request]) -> list[TransactionResult]:
         request = TransactionRequest(operations)
         response = TransactionResponse(None)
 
@@ -787,15 +826,21 @@ class Client34(Client33):
 
 
 class _Transaction:
-    def __init__(self, client):
+    def __init__(self, client: Client34) -> None:
         self.client = client
-        self.operations = []
-        self.post_processors = []
+        self.operations: list[Request] = []
+        self.post_processors: list[Callable[[str], str]] = []
         self.committed = False
         self.lock = threading.RLock()
 
     @log_wrapper()
-    def create(self, path, acls, code, data=None):
+    def create(
+        self,
+        path: str,
+        acls: list[ACL],
+        code: CreateCode,
+        data: bytearray | None = None,
+    ) -> None:
         self._add(
             CreateRequest(
                 _prefix_root(self.client.chroot, path), data, acls, code.flags
@@ -804,25 +849,25 @@ class _Transaction:
         )
 
     @log_wrapper()
-    def delete(self, path, version):
+    def delete(self, path: str, version: int) -> None:
         self._add(DeleteRequest(_prefix_root(self.client.chroot, path), version))
 
     @log_wrapper()
-    def set_data(self, path, data, version):
+    def set_data(self, path: str, data: bytearray, version: int) -> None:
         self._add(SetDataRequest(_prefix_root(self.client.chroot, path), data, version))
 
     @log_wrapper()
-    def check(self, path, version):
+    def check(self, path: str, version: int) -> None:
         self._add(CheckVersionRequest(_prefix_root(self.client.chroot, path), version))
 
     @log_wrapper()
-    def commit(self):
+    def commit(self) -> list[TransactionResult]:
         with self.lock:
             self._check_tx_state()
             self.committed = True
             LOGGER.debug("Committing on %r", self)
 
-            results = []
+            results: list[TransactionResult] = []
             for e, p in zip(
                 self.client._multi(self.operations), self.post_processors, strict=False
             ):
@@ -832,19 +877,26 @@ class _Transaction:
 
             return results
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         """commit and cleanup accumulated transaction data structures"""
         if not exc_type:
             self.commit()
 
-    def _check_tx_state(self):
+    def _check_tx_state(self) -> None:
         if self.committed:
             raise ValueError("Transaction already committed")
 
-    def _add(self, request, post_processor=None):
+    def _add(
+        self, request: Request, post_processor: Callable[[str], str] | None = None
+    ) -> None:
         with self.lock:
             self._check_tx_state()
             LOGGER.debug("Added %r to %r", request, self)

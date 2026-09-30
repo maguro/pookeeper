@@ -13,16 +13,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import logging
 import random
 import select
-import socket
 import struct
 import threading
 import time
-from collections.abc import Callable
 from queue import Empty, Queue
 from time import time as _time
+from typing import TYPE_CHECKING
 
 from pookeeper import (
     AUTH_FAILED,
@@ -35,7 +36,6 @@ from pookeeper import (
     WatcherEventType,
 )
 from pookeeper.archive import InputArchive, OutputArchive
-from pookeeper.events import Events
 from pookeeper.packets.proto.AuthPacket import AuthPacket
 from pookeeper.packets.proto.CloseRequest import CloseRequest
 from pookeeper.packets.proto.CloseResponse import CloseResponse
@@ -45,39 +45,31 @@ from pookeeper.packets.proto.PingRequest import PingRequest
 from pookeeper.packets.proto.ReplyHeader import ReplyHeader
 from pookeeper.packets.proto.WatcherEvent import WatcherEvent
 
+if TYPE_CHECKING:
+    import socket
+    from collections.abc import Callable
+
+    from pookeeper._typing import Deserializable, QueuedCall, Request
+    from pookeeper.events import Events
+    from pookeeper.zookeeper import Client33
+
 LOGGER = logging.getLogger(__name__)
 
 
 class ConnectionDropped(RuntimeError):
     """Internal error for jumping out of loops"""
 
-    def __init__(self, *args, **kwargs):
-        # noinspection PyArgumentList
-        super().__init__(*args, **kwargs)
-
 
 class SessionTimeout(RuntimeError):
     """Internal error for jumping out of loops"""
-
-    def __init__(self, *args, **kwargs):
-        # noinspection PyArgumentList
-        super().__init__(*args, **kwargs)
 
 
 class SessionExpired(RuntimeError):
     """Session expired"""
 
-    def __init__(self, *args, **kwargs):
-        # noinspection PyArgumentList
-        super().__init__(*args, **kwargs)
-
 
 class ConnectionDroppedForTest(RuntimeError):
     """Socket dropped for testing"""
-
-    def __init__(self, *args, **kwargs):
-        # noinspection PyArgumentList
-        super().__init__(*args, **kwargs)
 
 
 class ReaderThread(threading.Thread):
@@ -91,12 +83,12 @@ class ReaderThread(threading.Thread):
 
     def __init__(
         self,
-        client,
+        client: Client33,
         events: Events,
         soc: socket.socket,
         reader_done: threading.Event,
         read_timeout: float,
-    ):
+    ) -> None:
         super().__init__(name=f"reader-{client.id}")
         self.client = client
         self.events = events
@@ -104,7 +96,7 @@ class ReaderThread(threading.Thread):
         self.reader_done = reader_done
         self.read_timeout = read_timeout
 
-    def run(self):  # noqa: C901
+    def run(self) -> None:  # noqa: C901
         LOGGER.debug("Reader started")
         try:
             while True:
@@ -266,8 +258,8 @@ class ReaderThread(threading.Thread):
 
 def _event_factory(
     path: str, watchers: set[Watcher], callback: Callable[[Watcher, str], None]
-) -> Callable:
-    def event():
+) -> Callable[[], None]:
+    def event() -> None:
         for watcher in watchers:
             try:
                 callback(watcher, path)
@@ -280,12 +272,12 @@ def _event_factory(
 class WriterThread(threading.Thread):
     soc: socket.socket
 
-    def __init__(self, client, events: Events):
+    def __init__(self, client: Client33, events: Events) -> None:
         super().__init__(name=f"writer-{client.id}")
         self.client = client
         self.events = events
 
-    def run(self):  # noqa: C901
+    def run(self) -> None:  # noqa: C901
         LOGGER.debug("Starting writer %r", self.client.hosts)
 
         writer_done = False
@@ -300,7 +292,7 @@ class WriterThread(threading.Thread):
 
                 self.soc = self.client._allocate_socket()
 
-                self.client._state = CONNECTING
+                self.client._state = CONNECTING  # type: ignore[attr-defined]
 
                 self._connect(self.soc, host, port)
 
@@ -458,7 +450,11 @@ class WriterThread(threading.Thread):
 
 
 def _invoke(
-    soc: socket.socket, timeout: float, request, response=None, xid: int | None = None
+    soc: socket.socket,
+    timeout: float,
+    request: Request,
+    response: Deserializable | None = None,
+    xid: int | None = None,
 ) -> int | None:
     oa = OutputArchive()
     if xid:
@@ -498,7 +494,7 @@ def _invoke(
     return zxid
 
 
-def _submit(soc: socket.socket, request, timeout, xid: int | None = None) -> None:
+def _submit(soc: socket.socket, request: Request, timeout: float, xid: int) -> None:
     oa = OutputArchive()
     oa.write_int(xid, "xid")
     if request.type:
@@ -567,11 +563,11 @@ def _read(soc: socket.socket, length: int, timeout: float) -> tuple[bytearray, f
     return msg, timeout
 
 
-class PeekableQueue(Queue):
-    def __init__(self, maxsize=0):
+class PeekableQueue(Queue["QueuedCall"]):
+    def __init__(self, maxsize: int = 0) -> None:
         Queue.__init__(self, maxsize=0)
 
-    def peek(self, block=True, timeout=None):
+    def peek(self, block: bool = True, timeout: float | None = None) -> QueuedCall:
         """Return the first item in the queue but do not remove it from the queue.
 
         If optional args 'block' is true and 'timeout' is None (the default),

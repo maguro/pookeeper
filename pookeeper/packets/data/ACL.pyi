@@ -13,21 +13,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from pookeeper.archive import InputArchive, OutputArchive
+from pookeeper.packets.data.Id import Id
 
-class Session:
-    id: int | None
-    last_zxid: int
-    passwd: bytearray
+class ACL:
+    perms: int
+    id: Id
 
-    def __init__(
-        self,
-        session_id: int | None = None,
-        last_zxid: int = 0,
-        session_passwd: bytearray | None = None,
-    ) -> None:
-        self.id = session_id
-        self.last_zxid = last_zxid
-        self.passwd = session_passwd if session_passwd else bytearray([0] * 16)
-
-    def __repr__(self) -> str:
-        return f"Session(id={self.id}, last_zxid={self.last_zxid})"
+    def __init__(self, perms: int | None, id: Id | None) -> None: ...
+    def serialize(self, output_archive: OutputArchive, tag: str) -> None: ...
+    def deserialize(self, input_archive: InputArchive, tag: str) -> None: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
