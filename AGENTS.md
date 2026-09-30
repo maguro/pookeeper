@@ -48,5 +48,5 @@ The project uses `uv`. Run tools through `uv run`.
 
 ## Commits
 
-- Write commit messages in the Chris Beams style: an imperative subject line of 50 characters or fewer, a blank line, and a wrapped body that explains why.
+- Write commit messages as `.claude/skills/git-commit-message/SKILL.md` describes.
 - Do not add co-author or attribution lines.
