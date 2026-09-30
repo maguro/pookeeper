@@ -44,6 +44,7 @@ def allocate(
     read_only: bool = False,
     watcher: Watcher | None = None,
     allow_reconnect: bool = True,
+    default_acl: list[ACL] | None = None,
 ) -> Client34:
     """Create a ZooKeeper client object
 
@@ -96,6 +97,8 @@ def allocate(
             majority in the background.
         watcher: a watcher object which will be notified of state changes, may
             also be notified for node events
+        default_acl: the ACL that create() uses when it is given no ACL. The
+            default is OPEN_ACL_UNSAFE.
 
     """
     return allocate_34(
@@ -107,6 +110,7 @@ def allocate(
         read_only,
         watcher,
         allow_reconnect,
+        default_acl,
     )
 
 
@@ -119,6 +123,7 @@ def allocate_34(
     read_only: bool = False,
     watcher: Watcher | None = None,
     allow_reconnect: bool = True,
+    default_acl: list[ACL] | None = None,
 ) -> Client34:
     """Create a ZooKeeper client object
 
@@ -171,6 +176,8 @@ def allocate_34(
             majority in the background.
         watcher: a watcher object which will be notified of state changes, may
             also be notified for node events
+        default_acl: the ACL that create() uses when it is given no ACL. The
+            default is OPEN_ACL_UNSAFE.
 
     """
     from pookeeper.zookeeper import Client34
@@ -184,6 +191,7 @@ def allocate_34(
         read_only,
         watcher,
         allow_reconnect,
+        default_acl,
     )
 
     if LOGGER.isEnabledFor(logging.DEBUG):
@@ -213,6 +221,7 @@ def allocate_33(
     auth_data: AuthData | None = None,
     watcher: Watcher | None = None,
     allow_reconnect: bool = True,
+    default_acl: list[ACL] | None = None,
 ) -> Client33:
     """Create a ZooKeeper client object
 
@@ -258,6 +267,8 @@ def allocate_33(
         auth_data: a list of auth data for the connection
         watcher: a watcher object which will be notified of state changes, may
             also be notified for node events
+        default_acl: the ACL that create() uses when it is given no ACL. The
+            default is OPEN_ACL_UNSAFE.
 
     """
     from pookeeper.zookeeper import Client33
@@ -270,6 +281,7 @@ def allocate_33(
         auth_data,
         watcher,
         allow_reconnect,
+        default_acl,
     )
 
     if LOGGER.isEnabledFor(logging.DEBUG):
@@ -318,14 +330,13 @@ def create(
     Args:
         client: Pookeeper client
         path: the path to recursively create
-        ACL: ACL to use for new node creation. The default is OPEN_ACL_UNSAFE,
-            which lets every client read, change, and delete the nodes.
+        ACL: ACL to use for new node creation. The default is the client's
+            default_acl.
         code: the type of the new nodes that are created, default is Persistent
     """
     if client.exists(path):
         return
 
-    ACL = ACL or OPEN_ACL_UNSAFE
     code = code or Persistent()
 
     parent, node = split(path)

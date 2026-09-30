@@ -426,6 +426,49 @@ def test_creator_all_acl_restricts_node_to_creator():
             assert data == bytearray(b"secret data")
 
 
+def test_default_acl():
+    """create() falls back to the client's default_acl, then OPEN_ACL_UNSAFE."""
+    user, password = "pookie", "secret"
+    digest = base64.b64encode(
+        hashlib.sha1(f"{user}:{password}".encode()).digest()  # noqa: S324
+    ).decode()
+    creator_acl = [ACL(pookeeper.Perms.ALL, Id("digest", f"{user}:{digest}"))]
+
+    with container.Zookeeper() as zk:
+        connection_string = zk.get_connection_string()
+
+        with pookeeper.allocate(
+            connection_string,
+            session_timeout=0.8,
+            auth_data=[("digest", bytearray(f"{user}:{password}".encode()))],
+            default_acl=pookeeper.CREATOR_ALL_ACL,
+        ) as z:
+            assert z.create("/plain") == "/plain"
+            assert z.get_acls("/plain")[0] == creator_acl
+
+            pookeeper.create(z, "/parent/child")
+            assert z.get_acls("/parent")[0] == creator_acl
+            assert z.get_acls("/parent/child")[0] == creator_acl
+
+            t = z.allocate_transaction()
+            t.create("/in_transaction")
+            t.commit()
+            assert z.get_acls("/in_transaction")[0] == creator_acl
+
+            assert z.create("/explicit", pookeeper.READ_ACL_UNSAFE) == "/explicit"
+            assert z.get_acls("/explicit")[0] == pookeeper.READ_ACL_UNSAFE
+
+            try:
+                z.create("/empty", [])
+                raise AssertionError("create should have raised InvalidACLError")
+            except pookeeper.InvalidACLError:
+                pass
+
+        with pookeeper.allocate(connection_string, session_timeout=0.8) as z:
+            assert z.create("/open") == "/open"
+            assert z.get_acls("/open")[0] == pookeeper.OPEN_ACL_UNSAFE
+
+
 def test_bogus_auth():
     with container.Zookeeper() as zk:
         connection_string = zk.get_connection_string()

@@ -30,11 +30,13 @@ from pookeeper import (
     CONNECTED_RO,
     CONNECTING,
     CONNECTION_DROPPED_FOR_TEST,
+    OPEN_ACL_UNSAFE,
     AuthFailedError,
     ConnectionLoss,
     CreateCode,
     InvalidACLError,
     NoNodeError,
+    Persistent,
     SessionExpiredError,
     State,
     Watcher,
@@ -137,6 +139,7 @@ class Client33:
         auth_data: AuthData | None = None,
         watcher: Watcher | None = None,
         allow_reconnect: bool = True,
+        default_acl: list[ACL] | None = None,
     ) -> None:
         self.hosts, chroot = collect_hosts(hosts)
         if chroot:
@@ -170,6 +173,9 @@ class Client33:
 
         self.allow_reconnect = allow_reconnect
         LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
+
+        self.default_acl = OPEN_ACL_UNSAFE if default_acl is None else default_acl
+        LOGGER.debug("default_acl: %s", self.default_acl)
 
         self._queue = PeekableQueue()
         self._pending: Queue[PendingCall] = Queue()
@@ -241,8 +247,8 @@ class Client33:
     def create(
         self,
         path: str,
-        acls: list[ACL],
-        code: CreateCode,
+        acls: list[ACL] | None = None,
+        code: CreateCode | None = None,
         data: bytearray | None = None,
     ) -> str:
         """Create a node with the given path
@@ -286,9 +292,9 @@ class Client33:
 
         Args:
             path: the path for the node
-            acls: the acl for the node
+            acls: the acl for the node. The default is the client's default_acl.
             code: specifying whether the node to be created is ephemeral
-                and/or sequential
+                and/or sequential. The default is Persistent.
             data: optional initial data for the node
 
         Returns:
@@ -296,17 +302,19 @@ class Client33:
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
-            InvalidACLError: if the ACL is invalid, null, or empty
+            InvalidACLError: if the ACL is invalid or empty
             ValueError: if an invalid path is specified
 
         """
 
         LOGGER.debug("create(%r, %r, %r, %r)", path, acls, code, data)
 
+        if acls is None:
+            acls = self.default_acl
         if not acls:
-            raise InvalidACLError("ACLs cannot be None or empty")
-        if not code:
-            raise ValueError("Creation code cannot be None")
+            raise InvalidACLError("ACLs cannot be empty")
+        if code is None:
+            code = Persistent()
 
         request = CreateRequest(_prefix_root(self.chroot, path), data, acls, code.flags)
         response = CreateResponse(None)
@@ -790,6 +798,7 @@ class Client34(Client33):
         read_only: bool = False,
         watcher: Watcher | None = None,
         allow_reconnect: bool = True,
+        default_acl: list[ACL] | None = None,
     ) -> None:
         Client33.__init__(
             self,
@@ -800,6 +809,7 @@ class Client34(Client33):
             auth_data,
             watcher,
             allow_reconnect,
+            default_acl,
         )
         self.read_only = read_only
 
@@ -837,10 +847,14 @@ class _Transaction:
     def create(
         self,
         path: str,
-        acls: list[ACL],
-        code: CreateCode,
+        acls: list[ACL] | None = None,
+        code: CreateCode | None = None,
         data: bytearray | None = None,
     ) -> None:
+        if acls is None:
+            acls = self.client.default_acl
+        if code is None:
+            code = Persistent()
         self._add(
             CreateRequest(
                 _prefix_root(self.client.chroot, path), data, acls, code.flags
