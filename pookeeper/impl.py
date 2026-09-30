@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from pookeeper.events import Events
     from pookeeper.zookeeper import Client33
 
-LOGGER = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class ConnectionDropped(RuntimeError):
@@ -97,7 +97,7 @@ class ReaderThread(threading.Thread):
         self.read_timeout = read_timeout
 
     def run(self) -> None:  # noqa: C901
-        LOGGER.debug("Reader started")
+        _logger.debug("Reader started")
         try:
             while True:
                 try:
@@ -105,10 +105,10 @@ class ReaderThread(threading.Thread):
                         self.soc, self.read_timeout
                     )
                     if header.xid == -2:
-                        LOGGER.debug("Received PING")
+                        _logger.debug("Received PING")
                         continue
                     elif header.xid == -4:
-                        LOGGER.debug("Received AUTH")
+                        _logger.debug("Received AUTH")
                         continue
                     elif header.xid == -1:
                         watcher_event = WatcherEvent()
@@ -116,7 +116,7 @@ class ReaderThread(threading.Thread):
 
                         path = watcher_event.path
                         if path is None:
-                            LOGGER.warning(
+                            _logger.warning(
                                 "Received watcher event without a path %r",
                                 watcher_event,
                             )
@@ -128,12 +128,12 @@ class ReaderThread(threading.Thread):
                                 watcher_event.event_type
                                 == WatcherEventType.CREATED_EVENT
                             ):
-                                LOGGER.debug("Received created event %s", path)
+                                _logger.debug("Received created event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(
                                     path, set()
                                 )
-                                LOGGER.debug(" with %r", watchers)
+                                _logger.debug(" with %r", watchers)
 
                                 self.events.put(
                                     _event_factory(
@@ -144,13 +144,13 @@ class ReaderThread(threading.Thread):
                                 watcher_event.event_type
                                 == WatcherEventType.DELETE_EVENT
                             ):
-                                LOGGER.debug("Received deleted event %s", path)
+                                _logger.debug("Received deleted event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(
                                     path, set()
                                 )
                                 watchers |= self.client._child_watchers.pop(path, set())
-                                LOGGER.debug(" with %r", watchers)
+                                _logger.debug(" with %r", watchers)
 
                                 self.events.put(
                                     _event_factory(
@@ -161,12 +161,12 @@ class ReaderThread(threading.Thread):
                                 watcher_event.event_type
                                 == WatcherEventType.DATA_CHANGED_EVENT
                             ):
-                                LOGGER.debug("Received data changed event %s", path)
+                                _logger.debug("Received data changed event %s", path)
                                 watchers |= self.client._data_watchers.pop(path, set())
                                 watchers |= self.client._exists_watchers.pop(
                                     path, set()
                                 )
-                                LOGGER.debug(" with %r", watchers)
+                                _logger.debug(" with %r", watchers)
 
                                 self.events.put(
                                     _event_factory(
@@ -177,9 +177,11 @@ class ReaderThread(threading.Thread):
                                 watcher_event.event_type
                                 == WatcherEventType.CHILD_CHANGED_EVENT
                             ):
-                                LOGGER.debug("Received children changed event %s", path)
+                                _logger.debug(
+                                    "Received children changed event %s", path
+                                )
                                 watchers |= self.client._child_watchers.pop(path, set())
-                                LOGGER.debug(" with %r", watchers)
+                                _logger.debug(" with %r", watchers)
 
                                 self.events.put(
                                     _event_factory(
@@ -189,13 +191,13 @@ class ReaderThread(threading.Thread):
                                     )
                                 )
                             else:
-                                LOGGER.warning(
+                                _logger.warning(
                                     "Received unknown event %r",
                                     watcher_event.event_type,
                                 )
 
                     else:
-                        LOGGER.debug("Reading for header %r", header)
+                        _logger.debug("Reading for header %r", header)
 
                         with self.client._state_lock:
                             try:
@@ -219,41 +221,41 @@ class ReaderThread(threading.Thread):
                             callback_exception = None
                             if header.err:
                                 callback_exception = EXCEPTIONS[header.err]()
-                                LOGGER.debug("Received error %r", callback_exception)
+                                _logger.debug("Received error %r", callback_exception)
                             elif response:
                                 response.deserialize(input_archive, "response")
-                                LOGGER.debug("Received response: %r", response)
+                                _logger.debug("Received response: %r", response)
 
                             try:
                                 callback(callback_exception)
                             except Exception:
-                                LOGGER.exception("Unforeseen error during callback")
+                                _logger.exception("Unforeseen error during callback")
 
                             if isinstance(response, CloseResponse):
-                                LOGGER.debug("Read close response")
+                                _logger.debug("Read close response")
                                 self.soc.close()
                                 break
 
                 except ConnectionDropped:
-                    LOGGER.warning("Connection dropped for reader")
+                    _logger.warning("Connection dropped for reader")
                     raise
                 except SessionTimeout:
-                    LOGGER.warning("Session timeout for reader")
+                    _logger.warning("Session timeout for reader")
                     self.soc.close()
                     raise
                 except Exception:
-                    LOGGER.exception("Unforeseen error")
+                    _logger.exception("Unforeseen error")
                     raise
 
         except Exception:
-            LOGGER.exception("Unforeseen error")
+            _logger.exception("Unforeseen error")
             # A dead reader must take the connection down with it: closing the
             # socket makes the writer's next send fail into its reconnect path,
             # which drains the pending calls.
             self.soc.close()
         finally:
             self.reader_done.set()
-            LOGGER.debug("Reader stopped")
+            _logger.debug("Reader stopped")
 
 
 def _event_factory(
@@ -264,7 +266,7 @@ def _event_factory(
             try:
                 callback(watcher, path)
             except Exception:
-                LOGGER.exception("Unforeseen error during callback")
+                _logger.exception("Unforeseen error during callback")
 
     return event
 
@@ -278,7 +280,7 @@ class WriterThread(threading.Thread):
         self.events = events
 
     def run(self) -> None:  # noqa: C901
-        LOGGER.debug("Starting writer %r", self.client.hosts)
+        _logger.debug("Starting writer %r", self.client.hosts)
 
         writer_done = False
 
@@ -312,10 +314,10 @@ class WriterThread(threading.Thread):
                         request, _, _ = self.client._queue.peek(
                             True, self.read_timeout / 2.0
                         )
-                        LOGGER.debug("Sending %r", request)
+                        _logger.debug("Sending %r", request)
 
                         xid += 1
-                        LOGGER.debug("xid: %r", xid)
+                        _logger.debug("xid: %r", xid)
 
                         # Transfer the packet to the queue of pending results
                         # before sending it.  The response can arrive as soon as
@@ -329,34 +331,34 @@ class WriterThread(threading.Thread):
                         _submit(self.soc, request, self.connect_timeout, xid)
 
                         if isinstance(request, CloseRequest):
-                            LOGGER.debug("Received close request, closing")
+                            _logger.debug("Received close request, closing")
                             writer_done = True
                     except Empty:
-                        LOGGER.debug("Queue timeout.  Sending PING")
+                        _logger.debug("Queue timeout.  Sending PING")
                         _submit(self.soc, PingRequest(), self.connect_timeout, -2)
 
-                LOGGER.debug("Waiting for reader to read close response")
+                _logger.debug("Waiting for reader to read close response")
                 reader_done.wait()
-                LOGGER.info("Closing connection to %s:%s", host, port)
+                _logger.info("Closing connection to %s:%s", host, port)
 
                 if writer_done:
                     self.client._closed(CLOSED)
                     break
             except SessionExpired:
-                LOGGER.warning("Session expired, closing")
+                _logger.warning("Session expired, closing")
                 self.client._closed(CLOSED, session_expired=True)
                 break
             except AuthFailedError:
-                LOGGER.warning("Auth failed, closing")
+                _logger.warning("Auth failed, closing")
                 self.client._closed(AUTH_FAILED)
                 break
             except (ConnectionDropped, SessionTimeout) as e:
-                LOGGER.warning(f"Need to reconnect: {e!s}")
+                _logger.warning(f"Need to reconnect: {e!s}")
                 self.client._disconnected()
                 time.sleep(random.random())  # noqa: S311
                 break
             except Exception:
-                LOGGER.exception("Need to reconnect")
+                _logger.exception("Need to reconnect")
                 self.client._disconnected()
                 time.sleep(random.random())  # noqa: S311
             finally:
@@ -366,16 +368,16 @@ class WriterThread(threading.Thread):
                     # still needs to be read from the socket.
                     self.soc.close()
 
-        LOGGER.debug("Writer stopped")
+        _logger.debug("Writer stopped")
 
     def _connect(self, soc: socket.socket, host: str, port: int) -> None:
-        LOGGER.info("Connecting to %s:%s", host, port)
+        _logger.info("Connecting to %s:%s", host, port)
 
-        if LOGGER.isEnabledFor(logging.DEBUG):
+        if _logger.isEnabledFor(logging.DEBUG):
             encoded_session_password = "".join(
                 f"{x:02x}" for x in self.client.session.passwd
             )
-            LOGGER.debug(
+            _logger.debug(
                 "    Using session_id: %r session_passwd: 0x%s",
                 self.client.session.id,
                 encoded_session_password,
@@ -384,7 +386,7 @@ class WriterThread(threading.Thread):
         soc.connect((host, port))
         soc.setblocking(False)
 
-        LOGGER.debug("Connected")
+        _logger.debug("Connected")
 
         connect_request = ConnectRequest(
             0,
@@ -401,7 +403,7 @@ class WriterThread(threading.Thread):
         )
 
         if connection_response.timeOut < 0:
-            LOGGER.error("Session expired")
+            _logger.error("Session expired")
             self.events.put(
                 lambda: self.client._default_watcher.session_expired(
                     self.client.session.id
@@ -421,21 +423,21 @@ class WriterThread(threading.Thread):
             self.read_timeout = connection_response.timeOut * 2.0 / 3.0 / 1000.0
             self.client.session.passwd = connection_response.passwd
 
-            if LOGGER.isEnabledFor(logging.DEBUG):
+            if _logger.isEnabledFor(logging.DEBUG):
                 encoded_session_password = "".join(
                     f"{x:02x}" for x in self.client.session.passwd
                 )
-                LOGGER.debug(
+                _logger.debug(
                     "Session created, session_id: %r session_passwd: 0x%s",
                     self.client.session.id,
                     encoded_session_password,
                 )
-                LOGGER.debug(
+                _logger.debug(
                     "    negotiated session timeout: %s",
                     self.client.negotiated_session_timeout,
                 )
-                LOGGER.debug("    connect timeout: %s", self.connect_timeout)
-                LOGGER.debug("    read timeout: %s", self.read_timeout)
+                _logger.debug("    connect timeout: %s", self.connect_timeout)
+                _logger.debug("    read timeout: %s", self.read_timeout)
 
         self.client._connected(
             connection_response.sessionId,
@@ -485,12 +487,12 @@ def _invoke(
             zxid = header.zxid
         if header.err:
             callback_exception = EXCEPTIONS[header.err]()
-            LOGGER.debug("Received error %r", callback_exception)
+            _logger.debug("Received error %r", callback_exception)
             raise callback_exception
 
     if response:
         response.deserialize(ia, "NA")
-        LOGGER.debug("Read response %r", response)
+        _logger.debug("Read response %r", response)
 
     return zxid
 

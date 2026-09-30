@@ -86,7 +86,7 @@ if TYPE_CHECKING:
     from pookeeper.packets.data.ACL import ACL
     from pookeeper.packets.data.Stat import Stat
 
-LOGGER = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 _ID = 0
 _ID_LOCK = threading.RLock()
@@ -171,26 +171,26 @@ class Client33:
         self.auth_data: AuthData = auth_data if auth_data else set()
         self.read_only = False
 
-        if LOGGER.isEnabledFor(logging.DEBUG):
+        if _logger.isEnabledFor(logging.DEBUG):
             encoded_session_password = (
                 "".join(f"{x:02x}" for x in session_passwd)
                 if session_passwd
                 else "None"
             )
 
-            LOGGER.debug("session_id: %s", self.session.id)
-            LOGGER.debug("session_passwd: 0x%s", encoded_session_password)
-            LOGGER.debug("session_timeout: %s", self.session_timeout)
-            LOGGER.debug("connect_timeout: %s", self.connect_timeout)
-            LOGGER.debug("   len(hosts): %s", len(self.hosts))
-            LOGGER.debug("read_timeout: %s", self.read_timeout)
-            LOGGER.debug("auth_data: %s", self.auth_data)
+            _logger.debug("session_id: %s", self.session.id)
+            _logger.debug("session_passwd: 0x%s", encoded_session_password)
+            _logger.debug("session_timeout: %s", self.session_timeout)
+            _logger.debug("connect_timeout: %s", self.connect_timeout)
+            _logger.debug("   len(hosts): %s", len(self.hosts))
+            _logger.debug("read_timeout: %s", self.read_timeout)
+            _logger.debug("auth_data: %s", self.auth_data)
 
         self.allow_reconnect = allow_reconnect
-        LOGGER.debug("allow_reconnect: %s", self.allow_reconnect)
+        _logger.debug("allow_reconnect: %s", self.allow_reconnect)
 
         self.default_acl = OPEN_ACL_UNSAFE if default_acl is None else default_acl
-        LOGGER.debug("default_acl: %s", self.default_acl)
+        _logger.debug("default_acl: %s", self.default_acl)
 
         self._queue = PeekableQueue()
         self._pending: Queue[PendingCall] = Queue()
@@ -233,7 +233,7 @@ class Client33:
         will be triggered.
         """
 
-        LOGGER.debug("close()")
+        _logger.debug("close()")
 
         call_exception: BaseException | None = None
 
@@ -246,7 +246,7 @@ class Client33:
             def close(exception: ZookeeperError | None) -> None:
                 nonlocal call_exception
                 call_exception = exception
-                LOGGER.debug("Closing handler called")
+                _logger.debug("Closing handler called")
 
             self._queue.put((CloseRequest(), CloseResponse(), close))
 
@@ -322,7 +322,7 @@ class Client33:
 
         """
 
-        LOGGER.debug("create(%r, %r, %r, %r)", path, acls, code, data)
+        _logger.debug("create(%r, %r, %r, %r)", path, acls, code, data)
 
         if acls is None:
             acls = self.default_acl
@@ -366,7 +366,7 @@ class Client33:
 
         """
 
-        LOGGER.debug("delete(%r, %r)", path, version)
+        _logger.debug("delete(%r, %r)", path, version)
 
         request = DeleteRequest(_prefix_root(self.chroot, path), version)
 
@@ -396,10 +396,12 @@ class Client33:
 
         """
 
-        LOGGER.debug("exists(%r, %r, %r)", path, watch, watcher)
+        _logger.debug("exists(%r, %r, %r)", path, watch, watcher)
 
         if watch and watcher:
-            LOGGER.warning("Both watch and watcher were specified, registering watcher")
+            _logger.warning(
+                "Both watch and watcher were specified, registering watcher"
+            )
 
         request = ExistsRequest(
             _prefix_root(self.chroot, path), watch or watcher is not None
@@ -456,10 +458,12 @@ class Client33:
 
         """
 
-        LOGGER.debug("get_data(%r, %r, %r)", path, watch, watcher)
+        _logger.debug("get_data(%r, %r, %r)", path, watch, watcher)
 
         if watch and watcher:
-            LOGGER.warning("Both watch and watcher were specified, registering watcher")
+            _logger.warning(
+                "Both watch and watcher were specified, registering watcher"
+            )
 
         request = GetDataRequest(
             _prefix_root(self.chroot, path), watch or watcher is not None
@@ -513,7 +517,7 @@ class Client33:
 
         """
 
-        LOGGER.debug("set_data(%r, %r, %r)", path, data, version)
+        _logger.debug("set_data(%r, %r, %r)", path, data, version)
 
         request = SetDataRequest(_prefix_root(self.chroot, path), data, version)
         response = SetDataResponse(None)
@@ -539,7 +543,7 @@ class Client33:
 
         """
 
-        LOGGER.debug("get_acls(%r)", path)
+        _logger.debug("get_acls(%r)", path)
 
         request = GetACLRequest(_prefix_root(self.chroot, path))
         response = GetACLResponse(None, None)
@@ -575,7 +579,7 @@ class Client33:
 
         """
 
-        LOGGER.debug("set_acls(%r, %r, %r)", path, acls, version)
+        _logger.debug("set_acls(%r, %r, %r)", path, acls, version)
 
         request = SetACLRequest(_prefix_root(self.chroot, path), acls, version)
         response = SetACLResponse(None)
@@ -599,7 +603,7 @@ class Client33:
 
         """
 
-        LOGGER.debug("sync(%r)", path)
+        _logger.debug("sync(%r)", path)
 
         request = SyncRequest(_prefix_root(self.chroot, path))
         response = SyncResponse(None)
@@ -633,10 +637,12 @@ class Client33:
 
         """
 
-        LOGGER.debug("get_children(%r, %r, %r)", path, watch, watcher)
+        _logger.debug("get_children(%r, %r, %r)", path, watch, watcher)
 
         if watch and watcher:
-            LOGGER.warning("Both watch and watcher were specified, registering watcher")
+            _logger.warning(
+                "Both watch and watcher were specified, registering watcher"
+            )
 
         request = GetChildren2Request(
             _prefix_root(self.chroot, path), watch or watcher is not None
@@ -702,7 +708,7 @@ class Client33:
         self, session_id: int, session_passwd: bytearray, read_only: bool
     ) -> None:
         with self._state_lock:
-            LOGGER.debug("Connected %s", "read-only mode" if read_only else "")
+            _logger.debug("Connected %s", "read-only mode" if read_only else "")
 
             self.state = CONNECTED_RO if read_only else CONNECTED
             self._events.put(
@@ -722,10 +728,10 @@ class Client33:
             if self.state in {CONNECTING, CONNECTION_DROPPED_FOR_TEST}:
                 return
 
-            LOGGER.debug(
+            _logger.debug(
                 "Disconnected %s %s pending calls", self.state, self._pending.qsize()
             )
-            LOGGER.debug(
+            _logger.debug(
                 "        %s %s queued calls",
                 " " * len(str(self.state)),
                 self._queue.qsize(),
@@ -744,12 +750,12 @@ class Client33:
         with self._state_lock:
             self.state = state
 
-            LOGGER.debug("CLOSING %s %s pending calls", state, self._pending.qsize())
-            LOGGER.debug(
+            _logger.debug("CLOSING %s %s pending calls", state, self._pending.qsize())
+            _logger.debug(
                 "        %s %s queued calls", " " * len(str(state)), self._queue.qsize()
             )
             if session_expired:
-                LOGGER.debug("        session expired")
+                _logger.debug("        session expired")
 
             # notify watchers
             if state == AUTH_FAILED:
@@ -781,14 +787,14 @@ class Client33:
             try:
                 callback(error)
             except Exception:
-                LOGGER.exception("Error while draining")
+                _logger.exception("Error while draining")
 
         while not self._queue.empty():
             _, _, callback = self._queue.get()
             try:
                 callback(error)
             except Exception:
-                LOGGER.exception("Error while draining")
+                _logger.exception("Error while draining")
 
 
 class Client34(Client33):
@@ -949,7 +955,7 @@ class _Transaction:
         with self.lock:
             self._check_tx_state()
             self.committed = True
-            LOGGER.debug("Committing on %r", self)
+            _logger.debug("Committing on %r", self)
 
             results: list[TransactionResult] = []
             for e, p in zip(
@@ -983,7 +989,7 @@ class _Transaction:
     ) -> None:
         with self.lock:
             self._check_tx_state()
-            LOGGER.debug("Added %r to %r", request, self)
+            _logger.debug("Added %r to %r", request, self)
             self.operations.append(request)
             self.post_processors.append(
                 post_processor if post_processor else lambda x: x

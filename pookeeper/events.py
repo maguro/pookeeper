@@ -18,7 +18,7 @@ import threading
 from collections.abc import Callable
 from queue import Queue
 
-LOGGER = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class Events:
@@ -44,10 +44,10 @@ class Events:
                         notification()
 
                     except Exception:
-                        LOGGER.exception("Unforeseen error during notification")
+                        _logger.exception("Unforeseen error during notification")
 
             finally:
-                LOGGER.debug("Event loop completed")
+                _logger.debug("Event loop completed")
                 self._event_thread_completed.set()
 
         self._event_thread = threading.Thread(

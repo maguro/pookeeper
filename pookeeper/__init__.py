@@ -43,7 +43,8 @@ if TYPE_CHECKING:
 
 __version__ = "0.1.0-dev"
 
-LOGGER = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
+_logger.addHandler(logging.NullHandler())
 
 
 def allocate(
@@ -201,11 +202,11 @@ def allocate_34(
         default_acl,
     )
 
-    if LOGGER.isEnabledFor(logging.DEBUG):
+    if _logger.isEnabledFor(logging.DEBUG):
         encoded_session_password = (
             "".join(f"{x:02x}" for x in session_passwd) if session_passwd else "None"
         )
-        LOGGER.debug(
+        _logger.debug(
             "Allocated v3.4 client, %s, %s, 0x%s, %s, %r, %s, %s, %s",
             hosts,
             session_id,
@@ -289,11 +290,11 @@ def allocate_33(
         default_acl,
     )
 
-    if LOGGER.isEnabledFor(logging.DEBUG):
+    if _logger.isEnabledFor(logging.DEBUG):
         encoded_session_password = (
             "".join(f"{x:02x}" for x in session_passwd) if session_passwd else "None"
         )
-        LOGGER.debug(
+        _logger.debug(
             "Allocated v3.3 client, %s, %s, 0x%s, %s, %r, %s, %s",
             hosts,
             session_id,
@@ -321,7 +322,7 @@ def delete(client: Client33, path: str) -> None:
     for child in children:
         delete(client, path + "/" + child)
     client.delete(path, stat.version)
-    LOGGER.debug("Deleted %s", path)
+    _logger.debug("Deleted %s", path)
 
 
 def create(
@@ -350,7 +351,7 @@ def create(
         create(client, parent, ACL, code)
     try:
         client.create(path, ACL, code)
-        LOGGER.debug("Created %s, ACL: %s, code %s", path, ACL, code)
+        _logger.debug("Created %s, ACL: %s, code %s", path, ACL, code)
     except NodeExistsError:
         pass
 
