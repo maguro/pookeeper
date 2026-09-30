@@ -126,6 +126,21 @@ def log_wrapper() -> Callable[[_Method[_P, _R]], _Method[_P, _R]]:
 
 
 class Client33:
+    """A client for the ZooKeeper 3.3 operations.
+
+    Create one with pookeeper.allocate_33(), which takes the same arguments as
+    this constructor. Use it as a context manager, or call close() when done.
+
+    Attributes:
+        state: the connection State, for example CONNECTED
+        session: the Session. Its id and passwd resume the session in a new
+            client.
+        chroot: the path that all operations are relative to, or "" for none
+        default_acl: the ACL that create() uses when it is given no ACL
+        negotiated_session_timeout: the session timeout in seconds that the
+            server agreed to. It is set when the client first connects.
+    """
+
     id: int
     negotiated_session_timeout: float
 
@@ -331,7 +346,7 @@ class Client33:
         matches the node's version (if the given version is -1, the default,
         it matches any node's versions).
 
-        A NodeExistsError will be raised if the nodes does not exist.
+        A NoNodeError will be raised if the node does not exist.
 
         A BadVersionError will be raised if the given version does not match
         the node's version.
@@ -363,22 +378,18 @@ class Client33:
     ) -> Stat | None:
         """Return the stat of the node of the given path
 
-        Return null if no such a node exists.
-
-        If the watcher is non-null and the call is successful (no error is raised),
-        a watcher will be left on the node with the given path. The watcher will be
-        triggered by a successful operation that creates/delete the node or sets
-        the data on the node.
+        If watch is True or a watcher is given, a watch is left on the node,
+        even if the node does not exist. The watch fires when the node is
+        created or deleted, or when its data is set.
 
         Args:
             path: the node path
-            watch: designate the default watcher associated with this connection
-                to be the watcher
-            watcher: explicit watcher
+            watch: whether to set a watch that notifies the client's default
+                watcher
+            watcher: a watcher to notify instead of the default watcher
 
         Returns:
-            The stat of the node of the given path; return null if no such a
-            node exists.
+            The stat of the node, or None if the node does not exist.
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
@@ -427,21 +438,20 @@ class Client33:
     ) -> tuple[bytearray, Stat]:
         """Return the data and the stat of the node of the given path
 
-        If the watch is non-null and the call is successful (no error is
-        raised), a watch will be left on the node with the given path. The watch
-        will be triggered by a successful operation that sets data on the node, or
-        deletes the node.
+        If watch is True or a watcher is given and the call succeeds, a watch
+        is left on the node. The watch fires when the data of the node is set
+        or the node is deleted.
 
         NoNodeError will be raised if no node with the given path exists.
 
         Args:
-            path: the given path
-            watch: designate the default watcher associated with this connection
-                to be the watcher
-            watcher: explicit watcher
+            path: the node path
+            watch: whether to set a watch that notifies the client's default
+                watcher
+            watcher: a watcher to notify instead of the default watcher
 
         Returns:
-            The data of the node
+            A tuple of the data of the node and its stat.
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
@@ -499,7 +509,7 @@ class Client33:
             version: the expected matching version
 
         Returns:
-            The state of the node
+            The new stat of the node.
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
@@ -525,7 +535,7 @@ class Client33:
             path: the given path for the node
 
         Returns:
-            The ACL array of the given node
+            A tuple of the ACL list of the node and its stat.
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
@@ -579,12 +589,13 @@ class Client33:
 
     @log_wrapper()
     def sync(self, path: str) -> None:
-        """Asynchronous sync
+        """Bring the connected server up to date with the leader
 
-        Flushes channel between process and leader.
+        Call it before a read that must see every write the leader has
+        committed. It returns when the server has caught up.
 
         Args:
-            path: the given path for the node
+            path: the path of the node to sync
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
@@ -602,26 +613,23 @@ class Client33:
     def get_children(
         self, path: str, watch: bool = False, watcher: Watcher | None = None
     ) -> tuple[list[str], Stat]:
-        """Return the list of the children of the node of the given path
+        """Return the names of the children of the node of the given path
 
-        If the watch is non-null and the call is successful (no error is raised),
-        a watch will be left on the node with the given path. The watch will be
-        triggered by a successful operation that deletes the node of the given
-        path or creates/delete a child under the node.
-
-        The list of children returned is not sorted and no guarantee is provided
-        as to its natural or lexical order.
+        If watch is True or a watcher is given and the call succeeds, a watch
+        is left on the node. The watch fires when the node is deleted, or when
+        a child is added to or removed from it.
 
         NoNodeError will be raised if no node with the given path exists.
 
         Args:
-            path: the given path
-            watch: designate the default watcher associated with this connection
-                to be the watcher of the children
-            watcher: explicit watcher
+            path: the node path
+            watch: whether to set a watch that notifies the client's default
+                watcher
+            watcher: a watcher to notify instead of the default watcher
 
         Returns:
-            An unordered array of children of the node with the given path
+            A tuple of the names of the children, in no particular order, and
+            the stat of the node.
 
         Raises:
             ZookeeperError: if the server returns a non-zero error code
@@ -787,6 +795,12 @@ class Client33:
 
 
 class Client34(Client33):
+    """A client for the ZooKeeper 3.4 operations.
+
+    It adds transactions and read-only mode to Client33. Create one with
+    pookeeper.allocate(), which takes the same arguments as this constructor.
+    """
+
     @log_wrapper()
     def __init__(
         self,
@@ -836,6 +850,13 @@ class Client34(Client33):
 
 
 class _Transaction:
+    """Operations that the server applies together, or not at all.
+
+    Get one from Client34.allocate_transaction(). Add operations, then call
+    commit(). Used as a context manager, it commits when the with block ends,
+    unless the block raised an exception.
+    """
+
     def __init__(self, client: Client34) -> None:
         self.client = client
         self.operations: list[Request] = []
@@ -851,6 +872,13 @@ class _Transaction:
         code: CreateCode | None = None,
         data: bytearray | None = None,
     ) -> None:
+        """Add the creation of a node.
+
+        The arguments are the same as those of Client33.create().
+
+        Raises:
+            ValueError: if the transaction was already committed
+        """
         if acls is None:
             acls = self.client.default_acl
         if code is None:
@@ -864,18 +892,63 @@ class _Transaction:
 
     @log_wrapper()
     def delete(self, path: str, version: int) -> None:
+        """Add the deletion of a node.
+
+        Args:
+            path: the path of the node to delete
+            version: the version the node must have, or -1 for any version
+
+        Raises:
+            ValueError: if the transaction was already committed
+        """
         self._add(DeleteRequest(_prefix_root(self.client.chroot, path), version))
 
     @log_wrapper()
     def set_data(self, path: str, data: bytearray, version: int) -> None:
+        """Add setting the data of a node.
+
+        Args:
+            path: the path of the node
+            data: the new data
+            version: the version the node must have, or -1 for any version
+
+        Raises:
+            ValueError: if the transaction was already committed
+        """
         self._add(SetDataRequest(_prefix_root(self.client.chroot, path), data, version))
 
     @log_wrapper()
     def check(self, path: str, version: int) -> None:
+        """Add a check that a node has a version.
+
+        The transaction fails if the check fails.
+
+        Args:
+            path: the path of the node
+            version: the version the node must have
+
+        Raises:
+            ValueError: if the transaction was already committed
+        """
         self._add(CheckVersionRequest(_prefix_root(self.client.chroot, path), version))
 
     @log_wrapper()
     def commit(self) -> list[TransactionResult]:
+        """Send the operations to the server, which applies all or none of them.
+
+        Returns:
+            One result for each operation, in the order the operations were
+            added. When the transaction succeeds, a create gives the path of
+            the new node, set_data gives the new stat of the node, and delete
+            and check give an empty tuple. When it fails, the server applies
+            no operation and every result is a ZookeeperError: the operation
+            that failed gives its error, the operations before it give
+            RolledBackError, and the operations after it give
+            RuntimeInconsistency.
+
+        Raises:
+            ValueError: if the transaction was already committed
+        """
         with self.lock:
             self._check_tx_state()
             self.committed = True
@@ -900,7 +973,7 @@ class _Transaction:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """commit and cleanup accumulated transaction data structures"""
+        """Commit the transaction, unless the with block raised an exception."""
         if not exc_type:
             self.commit()
 

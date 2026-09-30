@@ -13,6 +13,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""Pure Python ZooKeeper client.
+
+Create a client with allocate() and use it as a context manager::
+
+    import pookeeper
+
+    with pookeeper.allocate("127.0.0.1:2181") as client:
+        client.create("/app", data=bytearray(b"config"))
+        data, stat = client.get_data("/app")
+"""
+
 from __future__ import annotations
 
 import logging
@@ -48,32 +59,25 @@ def allocate(
 ) -> Client34:
     """Create a ZooKeeper client object
 
-    To create a ZooKeeper client object, the application needs to pass a
-    connection string containing a comma separated list of host:port pairs,
-    each corresponding to a ZooKeeper server.
+    The hosts argument is a comma-separated list of host:port pairs, one for
+    each ZooKeeper server.
 
-    Session establishment is asynchronous. This constructor will initiate
-    connection to the server and return immediately - potentially (usually)
-    before the session is fully established. The watcher argument specifies
-    the watcher that will be notified of any changes in state. This
-    notification can come at any point before or after the constructor call
-    has returned.
+    The client connects in the background and returns before the session is
+    established. The watcher is notified when the session connects, which can
+    happen before or after this call returns. Calls made before the session
+    is established wait for it.
 
-    The instantiated ZooKeeper client object will pick an arbitrary server
-    from the connectString and attempt to connect to it. If establishment of
-    the connection fails, another server in the connect string will be tried
-    (the order is non-deterministic, as we random shuffle the list), until a
-    connection is established. The client will continue attempts until the
-    session is explicitly closed (or the session is expired by the server).
+    The client tries the servers in a random order until one accepts the
+    connection. If the connection drops, the client connects to the next
+    server and keeps the same session. It keeps trying until the client is
+    closed or the server expires the session.
 
-    An optional "chroot" suffix may also be appended to the connection string.
-    This will run the client commands while interpreting all paths relative to
-    this root (similar to the unix chroot command).
+    A path at the end of hosts sets a chroot. The client then runs all
+    operations relative to that path, the way the Unix chroot command does.
 
-    Use session_id and session_passwd on an established client connection,
-    these values must be passed as session_id and session_passwd respectively
-    if reconnecting. Otherwise, if not reconnecting, use the other constructor
-    which does not require these parameters.
+    To resume an existing session, pass the session_id and session_passwd of
+    a client that has connected. They are in its session.id and
+    session.passwd attributes.
 
     Args:
         hosts: comma separated host:port pairs, each corresponding to a zk
@@ -84,10 +88,13 @@ def allocate(
             would be relative to this root - ie getting/setting/etc...
             "/foo/bar" would result in operations being run on
             "/app/a/foo/bar" (from the server perspective).
-        session_id: specific session id to use if reconnecting
-        session_passwd: password for this session
-        session_timeout: session timeout in milliseconds
-        auth_data: a list of auth data for the connection
+        session_id: the ID of a session to resume
+        session_passwd: the password of the session to resume
+        session_timeout: the session timeout in seconds. The server can change
+            it. The client's negotiated_session_timeout holds the value the
+            server agreed to.
+        auth_data: (scheme, credentials) pairs that the client authenticates
+            with after each connect, for example [("digest", b"user:password")]
         read_only: whether the created client is allowed to go to
             read-only mode in case of partitioning. Read-only mode
             basically means that if the client can't find any majority
@@ -97,6 +104,8 @@ def allocate(
             majority in the background.
         watcher: a watcher object which will be notified of state changes, may
             also be notified for node events
+        allow_reconnect: whether to reconnect after the connection drops. If
+            False, the client closes when its first connection is lost.
         default_acl: the ACL that create() uses when it is given no ACL. The
             default is OPEN_ACL_UNSAFE.
 
@@ -127,32 +136,25 @@ def allocate_34(
 ) -> Client34:
     """Create a ZooKeeper client object
 
-    To create a ZooKeeper client object, the application needs to pass a
-    connection string containing a comma separated list of host:port pairs,
-    each corresponding to a ZooKeeper server.
+    The hosts argument is a comma-separated list of host:port pairs, one for
+    each ZooKeeper server.
 
-    Session establishment is asynchronous. This constructor will initiate
-    connection to the server and return immediately - potentially (usually)
-    before the session is fully established. The watcher argument specifies
-    the watcher that will be notified of any changes in state. This
-    notification can come at any point before or after the constructor call
-    has returned.
+    The client connects in the background and returns before the session is
+    established. The watcher is notified when the session connects, which can
+    happen before or after this call returns. Calls made before the session
+    is established wait for it.
 
-    The instantiated ZooKeeper client object will pick an arbitrary server
-    from the connectString and attempt to connect to it. If establishment of
-    the connection fails, another server in the connect string will be tried
-    (the order is non-deterministic, as we random shuffle the list), until a
-    connection is established. The client will continue attempts until the
-    session is explicitly closed (or the session is expired by the server).
+    The client tries the servers in a random order until one accepts the
+    connection. If the connection drops, the client connects to the next
+    server and keeps the same session. It keeps trying until the client is
+    closed or the server expires the session.
 
-    An optional "chroot" suffix may also be appended to the connection string.
-    This will run the client commands while interpreting all paths relative to
-    this root (similar to the unix chroot command).
+    A path at the end of hosts sets a chroot. The client then runs all
+    operations relative to that path, the way the Unix chroot command does.
 
-    Use session_id and session_passwd on an established client connection,
-    these values must be passed as session_id and session_passwd respectively
-    if reconnecting. Otherwise, if not reconnecting, use the other constructor
-    which does not require these parameters.
+    To resume an existing session, pass the session_id and session_passwd of
+    a client that has connected. They are in its session.id and
+    session.passwd attributes.
 
     Args:
         hosts: comma separated host:port pairs, each corresponding to a zk
@@ -163,10 +165,13 @@ def allocate_34(
             would be relative to this root - ie getting/setting/etc...
             "/foo/bar" would result in operations being run on
             "/app/a/foo/bar" (from the server perspective).
-        session_id: specific session id to use if reconnecting
-        session_passwd: password for this session
-        session_timeout: session timeout in milliseconds
-        auth_data: a list of auth data for the connection
+        session_id: the ID of a session to resume
+        session_passwd: the password of the session to resume
+        session_timeout: the session timeout in seconds. The server can change
+            it. The client's negotiated_session_timeout holds the value the
+            server agreed to.
+        auth_data: (scheme, credentials) pairs that the client authenticates
+            with after each connect, for example [("digest", b"user:password")]
         read_only: whether the created client is allowed to go to
             read-only mode in case of partitioning. Read-only mode
             basically means that if the client can't find any majority
@@ -176,6 +181,8 @@ def allocate_34(
             majority in the background.
         watcher: a watcher object which will be notified of state changes, may
             also be notified for node events
+        allow_reconnect: whether to reconnect after the connection drops. If
+            False, the client closes when its first connection is lost.
         default_acl: the ACL that create() uses when it is given no ACL. The
             default is OPEN_ACL_UNSAFE.
 
@@ -225,32 +232,25 @@ def allocate_33(
 ) -> Client33:
     """Create a ZooKeeper client object
 
-    To create a ZooKeeper client object, the application needs to pass a
-    connection string containing a comma separated list of host:port pairs,
-    each corresponding to a ZooKeeper server.
+    The hosts argument is a comma-separated list of host:port pairs, one for
+    each ZooKeeper server.
 
-    Session establishment is asynchronous. This constructor will initiate
-    connection to the server and return immediately - potentially (usually)
-    before the session is fully established. The watcher argument specifies
-    the watcher that will be notified of any changes in state. This
-    notification can come at any point before or after the constructor call
-    has returned.
+    The client connects in the background and returns before the session is
+    established. The watcher is notified when the session connects, which can
+    happen before or after this call returns. Calls made before the session
+    is established wait for it.
 
-    The instantiated ZooKeeper client object will pick an arbitrary server
-    from the connectString and attempt to connect to it. If establishment of
-    the connection fails, another server in the connect string will be tried
-    (the order is non-deterministic, as we random shuffle the list), until a
-    connection is established. The client will continue attempts until the
-    session is explicitly closed (or the session is expired by the server).
+    The client tries the servers in a random order until one accepts the
+    connection. If the connection drops, the client connects to the next
+    server and keeps the same session. It keeps trying until the client is
+    closed or the server expires the session.
 
-    An optional "chroot" suffix may also be appended to the connection string.
-    This will run the client commands while interpreting all paths relative to
-    this root (similar to the unix chroot command).
+    A path at the end of hosts sets a chroot. The client then runs all
+    operations relative to that path, the way the Unix chroot command does.
 
-    Use session_id and session_passwd on an established client connection,
-    these values must be passed as session_id and session_passwd respectively
-    if reconnecting. Otherwise, if not reconnecting, use the other constructor
-    which does not require these parameters.
+    To resume an existing session, pass the session_id and session_passwd of
+    a client that has connected. They are in its session.id and
+    session.passwd attributes.
 
     Args:
         hosts: comma separated host:port pairs, each corresponding to a zk
@@ -261,12 +261,17 @@ def allocate_33(
             would be relative to this root - ie getting/setting/etc...
             "/foo/bar" would result in operations being run on
             "/app/a/foo/bar" (from the server perspective).
-        session_id: specific session id to use if reconnecting
-        session_passwd: password for this session
-        session_timeout: session timeout in milliseconds
-        auth_data: a list of auth data for the connection
+        session_id: the ID of a session to resume
+        session_passwd: the password of the session to resume
+        session_timeout: the session timeout in seconds. The server can change
+            it. The client's negotiated_session_timeout holds the value the
+            server agreed to.
+        auth_data: (scheme, credentials) pairs that the client authenticates
+            with after each connect, for example [("digest", b"user:password")]
         watcher: a watcher object which will be notified of state changes, may
             also be notified for node events
+        allow_reconnect: whether to reconnect after the connection drops. If
+            False, the client closes when its first connection is lost.
         default_acl: the ACL that create() uses when it is given no ACL. The
             default is OPEN_ACL_UNSAFE.
 
@@ -358,40 +363,110 @@ class WatcherEventType(IntEnum):
 
 
 class Watcher:
+    """Receives session and node events from a client.
+
+    Subclass it and override the callbacks you need. The base methods do
+    nothing. Pass a watcher to allocate() to receive session events and the
+    node events of watches set with watch=True. Pass one as the watcher
+    argument of exists(), get_data(), or get_children() to receive the node
+    events of that watch only.
+
+    All callbacks run in order on the client's event thread. A callback that
+    blocks delays the events after it. The client logs and ignores exceptions
+    that a callback raises.
+
+    A node watch fires once. Set it again to receive the next event. The path
+    that node callbacks receive is the full path on the server, including the
+    client's chroot.
+    """
+
     def session_connected(
         self, session_id: int, session_password: bytearray, read_only: bool
     ) -> None:
-        pass
+        """Called each time the client connects, including after a reconnect.
+
+        Args:
+            session_id: the ID of the session
+            session_password: the password of the session
+            read_only: whether the client is connected to a read-only server
+        """
 
     def session_expired(self, session_id: int | None) -> None:
-        pass
+        """Called when the server reports that the session has expired.
+
+        The client closes. Create a new client to continue.
+
+        Args:
+            session_id: the ID of the expired session
+        """
 
     def auth_failed(self) -> None:
-        pass
+        """Called when the server rejects the client's auth_data.
+
+        The client closes.
+        """
 
     def connection_dropped(self) -> None:
-        pass
+        """Called when the connection to a server drops.
+
+        Calls in progress raise ConnectionLoss. The client then reconnects and
+        keeps the session, unless allow_reconnect is False.
+        """
 
     def connection_closed(self) -> None:
-        pass
+        """Called when the client closes."""
 
     def node_created(self, path: str) -> None:
-        pass
+        """Called when a watched node is created.
+
+        Args:
+            path: the full path of the node on the server
+        """
 
     def node_deleted(self, path: str) -> None:
-        pass
+        """Called when a watched node is deleted.
+
+        Args:
+            path: the full path of the node on the server
+        """
 
     def data_changed(self, path: str) -> None:
-        pass
+        """Called when the data of a watched node is set.
+
+        Args:
+            path: the full path of the node on the server
+        """
 
     def children_changed(self, path: str) -> None:
-        pass
+        """Called when a child is added to or removed from a watched node.
+
+        Args:
+            path: the full path of the node on the server
+        """
 
 
 WatchersDict = defaultdict[str, set[Watcher]]
 
 
 class State:
+    """A connection state of a client, available as client.state.
+
+    Compare it with these module constants:
+
+    - CONNECTING: the client is connecting or reconnecting.
+    - CONNECTED: the client is connected and has a session.
+    - CONNECTED_RO: the client is connected to a read-only server. Writes
+      fail.
+    - AUTH_FAILED: the server rejected auth_data. The client is closed.
+    - CLOSED: the client is closed, or the server expired the session.
+    - CONNECTION_DROPPED_FOR_TEST: the connection dropped while
+      allow_reconnect was False. The client is closed.
+
+    Attributes:
+        code: the name of the state, for example "CONNECTED"
+        description: a readable description of the state
+    """
+
     def __init__(self, code: str, description: str) -> None:
         self.code = code
         self.description = description
@@ -449,9 +524,22 @@ CLOSED = Closed()
 CONNECTION_DROPPED_FOR_TEST = ConnectionDroppedForTest()
 
 CREATE_CODES: dict[int, CreateCode] = {}
+"""Maps each ZooKeeper create flag to a CreateCode instance."""
 
 
 class CreateCode:
+    """The kind of node that create() makes.
+
+    Use an instance of Persistent, Ephemeral, PersistentSequential, or
+    EphemeralSequential.
+
+    Attributes:
+        flags: the ZooKeeper create flag
+        ephemeral: whether the server deletes the node when the session that
+            created it ends
+        sequential: whether the server appends a sequence number to the name
+    """
+
     flags: int
     ephemeral: bool
     sequential: bool
@@ -491,27 +579,23 @@ def _create_code(
 
 @_create_code("PERSISTENT", 0, False, False)
 class Persistent(CreateCode):
-    """
-    The znode will not be automatically deleted upon client's disconnect.
-    """
+    """The node stays until it is deleted."""
 
     pass
 
 
 @_create_code("EPHEMERAL", 1, True, False)
 class Ephemeral(CreateCode):
-    """
-    The znode will be deleted upon the client's disconnect.
-    """
+    """The server deletes the node when the session that created it ends."""
 
     pass
 
 
 @_create_code("PERSISTENT_SEQUENTIAL", 2, False, True)
 class PersistentSequential(CreateCode):
-    """
-    The znode will not be automatically deleted upon client's disconnect,
-    and its name will be appended with a monotonically increasing number.
+    """The node stays until it is deleted.
+
+    The server appends an increasing sequence number to its name.
     """
 
     pass
@@ -519,16 +603,28 @@ class PersistentSequential(CreateCode):
 
 @_create_code("EPHEMERAL_SEQUENTIAL", 3, True, True)
 class EphemeralSequential(CreateCode):
-    """
-    The znode will be deleted upon the client's disconnect, and its name
-    will be appended with a monotonically increasing number.
+    """The server deletes the node when the session that created it ends.
 
+    The server appends an increasing sequence number to its name.
     """
 
     pass
 
 
 class Perms:
+    """ACL permission bits.
+
+    Combine them with |, for example Perms.READ | Perms.WRITE.
+
+    Attributes:
+        READ: get the data of the node and list its children
+        WRITE: set the data of the node
+        CREATE: create children of the node
+        DELETE: delete children of the node
+        ADMIN: set the ACL of the node
+        ALL: all of the above
+    """
+
     READ = 1
     WRITE = 2
     CREATE = 4
@@ -561,6 +657,7 @@ def _invalid_error_code() -> NoReturn:
 EXCEPTIONS: defaultdict[int, Callable[..., ZookeeperError]] = defaultdict(
     _invalid_error_code
 )
+"""Maps each ZooKeeper error code to a factory for its ZookeeperError."""
 
 
 _E = TypeVar("_E", bound="ZookeeperError")

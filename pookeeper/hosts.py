@@ -23,9 +23,11 @@ if TYPE_CHECKING:
 
 
 class RandomHostIterator:
-    """An iterator that returns a randomly selected host.  A host is
-    guaranteed to not be selected twice unless there is only one
-    host in the collection.
+    """An endless iterator over the hosts of a connection string.
+
+    It shuffles the hosts once, then returns them in that order, starting
+    over after the last one. The writer thread relies on it never ending to
+    keep reconnecting.
     """
 
     def __init__(self, hosts: list[tuple[str, int]]) -> None:
