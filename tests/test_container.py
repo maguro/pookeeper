@@ -35,7 +35,7 @@ def test_zookeeper_container():
             data_initial = _random_data()
             path = client.create(
                 "/pookie",
-                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.OPEN_ACL_UNSAFE,
                 pookeeper.Persistent(),
                 data=data_initial,
             )
@@ -47,17 +47,17 @@ def test_zookeeper_container():
 
             acls, stat = client.get_acls("/pookie")
             assert isinstance(stat, Stat)
-            assert acls == pookeeper.CREATOR_ALL_ACL
+            assert acls == pookeeper.OPEN_ACL_UNSAFE
             assert stat.version == 0
 
             stat = client.set_acls(
-                "/pookie", pookeeper.CREATOR_ALL_ACL + pookeeper.READ_ACL_UNSAFE
+                "/pookie", pookeeper.OPEN_ACL_UNSAFE + pookeeper.READ_ACL_UNSAFE
             )
             assert isinstance(stat, Stat)
 
             acls, stat = client.get_acls("/pookie")
             assert isinstance(stat, Stat)
-            assert acls == pookeeper.CREATOR_ALL_ACL + pookeeper.READ_ACL_UNSAFE
+            assert acls == pookeeper.OPEN_ACL_UNSAFE + pookeeper.READ_ACL_UNSAFE
             assert stat.version == 0
 
             data_one = _random_data()
@@ -86,7 +86,7 @@ def test_zookeeper_container():
             data_bear = _random_data()
             path = client.create(
                 "/pookie/bear",
-                pookeeper.CREATOR_ALL_ACL,
+                pookeeper.OPEN_ACL_UNSAFE,
                 pookeeper.Persistent(),
                 data=data_bear,
             )

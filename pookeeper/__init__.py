@@ -21,8 +21,8 @@ from enum import IntEnum
 from posixpath import split
 from typing import TYPE_CHECKING, NoReturn, TypeVar
 
-from pookeeper.packets.data import Id
 from pookeeper.packets.data.ACL import ACL
+from pookeeper.packets.data.Id import Id
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -318,13 +318,14 @@ def create(
     Args:
         client: Pookeeper client
         path: the path to recursively create
-        ACL: ACL to use for new node creation, default is CREATOR_ALL_ACL
+        ACL: ACL to use for new node creation. The default is OPEN_ACL_UNSAFE,
+            which lets every client read, change, and delete the nodes.
         code: the type of the new nodes that are created, default is Persistent
     """
     if client.exists(path):
         return
 
-    ACL = ACL or CREATOR_ALL_ACL
+    ACL = ACL or OPEN_ACL_UNSAFE
     code = code or Persistent()
 
     parent, node = split(path)
@@ -525,9 +526,21 @@ class Perms:
     ALL = 31
 
 
-OPEN_ACL_UNSAFE = [ACL(Perms.ALL, Id.ANYONE_ID_UNSAFE)]
-CREATOR_ALL_ACL = [ACL(Perms.ALL, Id.AUTH_IDS)]
-READ_ACL_UNSAFE = [ACL(Perms.READ, Id.ANYONE_ID_UNSAFE)]
+ANYONE_ID_UNSAFE = Id("world", "anyone")
+"""The identity that matches every client."""
+
+AUTH_IDS = Id("auth", "")
+"""The identities the creating session has authenticated with."""
+
+OPEN_ACL_UNSAFE = [ACL(Perms.ALL, ANYONE_ID_UNSAFE)]
+"""Gives every client full access to the node."""
+
+CREATOR_ALL_ACL = [ACL(Perms.ALL, AUTH_IDS)]
+"""Gives full access only to the identities the creating session authenticated
+with. Creating a node with it fails if the session has not authenticated."""
+
+READ_ACL_UNSAFE = [ACL(Perms.READ, ANYONE_ID_UNSAFE)]
+"""Lets every client read the node."""
 
 
 def _invalid_error_code() -> NoReturn:
